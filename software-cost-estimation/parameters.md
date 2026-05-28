@@ -27,7 +27,7 @@ Misurano il "ritmo" con cui il team ha prodotto il software. Sono usati a livell
 * **`PDR_AFP`** *(numeric)*: Project Delivery Rate calcolato in ore-uomo per *Adjusted Function Point*. (Es. quante ore ci vogliono produrre 1 AFP).
 * **`PDR_UFP`** *(numeric)*: Project Delivery Rate calcolato sugli *Unadjusted Function Points* (cioè quelli grezzi prima dei fattori correttivi).
 * **`NPDR_AFP`** *(numeric)*: Normalized Project Delivery Rate (Tasso di produttività normalizzato) basato sugli AFP.
-* **`NPDU_UFP`** *(numeric)*: (Verosimilmente *NPDR_UFP* ma scritto così per un refuso nell'header originale). Normalized Project Delivery Rate basato sui punti funzione non aggiustati (UFP).
+* **`NPDR_UFP`** *(numeric)*: Normalized Project Delivery Rate basato sui punti funzione non aggiustati (UFP).
 
 ## 5. Variabili Organizzative e di Progetto
 * **`Resource`** *(numeric)*: Codice categorico che identifica la tipologia di risorsa o l'impegno allocato nel team.
