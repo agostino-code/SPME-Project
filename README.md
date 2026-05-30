@@ -279,7 +279,7 @@ SPME-Project/
 │   ├── china.csv                   # Dataset China (499 progetti)
 │   ├── china.arff                  # Stesso dataset in formato ARFF (Weka)
 │   ├── parameters.md               # Documentazione dei parametri
-│   └── china_analysis.md           # Analisi esplorativa del dataset
+│   └── analysis.md           # Analisi esplorativa del dataset
 │
 ├── random-forest-regression/
 │   ├── train_rf.py                 # Script Random Forest standalone
