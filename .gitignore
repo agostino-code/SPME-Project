@@ -1,3 +1,6 @@
 .venv
 .antigravitycli
 __pycache__
+.*
+AGENTS.md
+paper.txt

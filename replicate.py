@@ -1,5 +1,4 @@
 """
-Replication Script for Software Project Effort Estimation.
 Replicates methodology from:
 "Assessing the effectiveness of approximate functional sizing approaches for effort estimation"
 (Di Martino, Ferrucci, Gravino et al., Information and Software Technology, 2020)
@@ -103,7 +102,7 @@ def run_replication():
         
     # 9. Print Results
     # Output format is aligned with the required task results.
-    print("--- Replication Results (MAR) ---")
+    print("--- Results (MAR) ---")
     for name, mar in results:
         print(f"{name:25s}: {mar:.2f}")
 
