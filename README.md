@@ -1,106 +1,84 @@
-# 📐 SPME — Software Project Measurement & Estimation
+# 📐 SPME — Software Project Measurement & Estimation (F-DCNN Edition)
 
-Applicazione web per la **stima dell'effort di sviluppo software** basata su Function Point Analysis, con validazione scientifica rigorosa ispirata al metodo di *Di Martino, Ferrucci, Gravino et al. (Information and Software Technology, 2020)*.
+Applicazione web per la **stima dell'effort di sviluppo software** basata sulla fusione tra **Fuzzy Logica (Fuzzy C-Means)** e **Deep Convolutional Neural Networks (DCNN)**. Il modello implementato replica le metodologie del paper *"Software effort estimation using convolutional neural network"*.
 
 ---
 
 ## 📋 Indice
 
 - [Panoramica](#panoramica)
-- [Metodo Scientifico](#metodo-scientifico)
+- [Modello Scientifico (F-DCNN)](#modello-scientifico-f-dcnn)
 - [Architettura](#architettura)
 - [Installazione](#installazione)
 - [Utilizzo](#utilizzo)
-- [Dataset](#dataset)
-- [Modelli e Risultati](#modelli-e-risultati)
+- [Dataset Supportati](#dataset-supportati)
 - [Struttura del Progetto](#struttura-del-progetto)
-- [Riferimenti Bibliografici](#riferimenti-bibliografici)
+- [Riferimenti](#riferimenti)
 
 ---
 
 ## Panoramica
 
-SPME è un tool di stima dei costi software che permette di:
-
-1. **Inserire le componenti funzionali** di un progetto (EI, EO, EQ, ILF, EIF)
-2. **Calcolare automaticamente** 4 metriche di dimensione funzionale (AFP, UFP, HLFPA, IFPA)
-3. **Predire lo sforzo di sviluppo** in person-hours tramite modelli SLR log-log
-4. **Validare scientificamente** le predizioni con test statistici (Wilcoxon, Vargha-Delaney)
-
-Il progetto nasce nell'ambito del corso del **Dipartimento di Ingegneria dell'Informazione (DIETI)** dell'Università degli Studi di Napoli Federico II.
+AuraEstimate (SPME) è un tool avanzato per la predizione dello sforzo nei progetti software. L'applicazione consente di caricare qualsiasi dataset di stima presente nella cartella `Software-estimation-datasets`, effettuarne un'analisi interattiva, configurare e addestrare una rete neurale DCNN preceduta da un preprocessing basato su clustering Fuzzy C-Means (FCM), visualizzare grafici di bontà di stima e calcolare stime per nuovi progetti inserendo le variabili di input.
 
 ---
 
-## Metodo Scientifico
+## Modello Scientifico (F-DCNN)
 
-L'applicazione replica la metodologia del paper:
-
-> **"Assessing the effectiveness of approximate functional sizing approaches for effort estimation"**
-> S. Di Martino, F. Ferrucci, C. Gravino et al.
-> *Information and Software Technology*, 123, 106308, 2020.
-
-### Pipeline sperimentale
+La pipeline di addestramento e predizione segue lo schema sotto indicato:
 
 ```
-Dataset China (499 progetti)
-    │
-    ├─ Calcolo metriche di size: AFP, UFP, HLFPA, IFPA
-    │
-    ├─ Costruzione modelli SLR in spazio log-log
-    │   └─ log(EFF) = a + b × log(Size)
-    │
-    ├─ Validazione con Leave-One-Out Cross Validation
-    │
-    ├─ Valutazione accuratezza
-    │   ├─ MAR  (Mean of Absolute Residuals)
-    │   └─ MdAPE (Median Absolute Percentage Error)
-    │
-    ├─ Test statistici
-    │   ├─ Wilcoxon signed-rank test (one-tailed)
-    │   ├─ Correzione di Bonferroni (α/k)
-    │   └─ Vargha-Delaney Â₁₂ effect size
-    │
-    └─ Diagnostica dei modelli
-        ├─ R², Adjusted R², F-statistic, Sign.F
-        ├─ Shapiro-Wilk test (normalità dei residui)
-        └─ Cook's Distance (osservazioni influenti)
+[Dataset Selezionato (CSV/ARFF)]
+               │
+               ▼
+   [Preprocessing dei Dati] (MinMax/Standard Scaler)
+               │
+               ▼
+     [Fuzzy C-Means (FCM)]
+               ├─ Identificazione dei Centroidi C_r
+               └─ Calcolo larghezze d_rj per funzioni gaussiane
+                       (tramite Xie-Beni Index per k ottimo)
+               │
+               ▼
+ [Trasformazione in Matrice 2D (m × k)]
+               │
+               ▼
+[Deep Convolutional Neural Network (DCNN)]
+               ├─ Conv2D (16 filtri, kernel 3x3) + ReLU
+               ├─ MaxPool2D (Adaptive, stride 1x1)
+               ├─ Conv2D (16 filtri, kernel 3x3) + ReLU
+               ├─ MaxPool2D (Adaptive, stride 1x1)
+               ├─ Flatten
+               ├─ Dense (32, ReLU) -> Dropout (0.2)
+               ├─ Dense (16, ReLU)
+               └─ Dense (1, Lineare)
 ```
 
-### Research Questions replicate
+### Valutazione con Cross-Validation
 
-| RQ | Domanda | Applicabile |
-|----|---------|:-----------:|
-| **RQ1** | Le approssimazioni FPA superano le baselines (media/mediana)? | ✅ |
-| **RQ2** | Le approssimazioni COSMIC superano le baselines? | ❌ (no dati COSMIC) |
-| **RQ3** | Le approssimazioni FPA sono equivalenti all'FPA standard? | ✅ |
-| **RQ4** | Le approssimazioni COSMIC sono equivalenti a COSMIC standard? | ❌ (no dati COSMIC) |
+Per garantire l'assenza di bias:
+* **Dataset piccoli (N ≤ 100)**: viene usata la Leave-One-Out Cross Validation (LOO-CV).
+* **Dataset grandi (N > 100)**: viene usata la 5-Fold Cross Validation.
 
 ---
 
 ## Architettura
 
-```
-┌──────────────┐       POST /predict       ┌──────────────────┐
-│              │ ─────────────────────────▸│                  │
-│   Frontend   │       JSON response       │   Flask Backend  │
-│  index.html  │ ◂─────────────────────────│     app.py       │
-│              │                           │                  │
-└──────────────┘                           └────────┬─────────┘
-                                                    │
-                                           ┌────────▼─────────┐
-                                           │   china.csv      │
-                                           │   499 progetti   │
-                                           │   19 attributi   │
-                                           └──────────────────┘
-```
+L'applicazione separa la logica del modello da quella web:
 
-| Componente | Tecnologia |
-|------------|-----------|
-| Backend | Python 3.10+, Flask |
-| Modelli | scikit-learn (`LinearRegression`), SciPy (`wilcoxon`, `shapiro`) |
-| Dati | pandas, NumPy |
-| Frontend | HTML5, CSS3 (glassmorphism), JavaScript vanilla |
-| Font | Google Fonts (Outfit) |
+```
+┌──────────────────┐               API Calls               ┌──────────────────┐
+│                  │ ────────────────────────────────────▸ │                  │
+│     Frontend     │                                       │   Flask Backend  │
+│    index.html    │ ◂──────────────────────────────────── │     app.py       │
+│                  │             JSON & Plot               │                  │
+└──────────────────┘                                       └────────┬─────────┘
+                                                                    │
+                                                           ┌────────▼─────────┐
+                                                           │ estimation_model │
+                                                           │   .py (PyTorch)  │
+                                                           └──────────────────┘
+```
 
 ---
 
@@ -108,159 +86,44 @@ Dataset China (499 progetti)
 
 ### Prerequisiti
 
-- Python 3.10 o superiore
-- pip
+* Python 3.10 o superiore
+* `.venv` attivo
 
-### Setup
+### Setup e Avvio
 
 ```bash
-# 1. Clona il repository
-git clone https://github.com/<your-username>/SPME-Project.git
-cd SPME-Project
-
-# 2. Crea e attiva un virtual environment
-python -m venv .venv
-
-# Windows (PowerShell)
-.\.venv\Scripts\Activate.ps1
-
-# Windows (cmd)
-.venv\Scripts\activate.bat
-
-# Linux/macOS
-source .venv/bin/activate
-
-# 3. Installa le dipendenze
+# 1. Installa le dipendenze aggiornate
 pip install -r requirements.txt
-pip install scipy
 
-# 4. Avvia l'applicazione
+# 2. Avvia l'applicazione Flask
 python app.py
 ```
 
-L'app sarà disponibile su **http://localhost:5000**.
-
-### Dipendenze
-
-| Pacchetto | Scopo |
-|-----------|-------|
-| `flask` | Web server |
-| `pandas` | Manipolazione dati |
-| `numpy` | Calcolo numerico |
-| `scikit-learn` | Modelli di regressione, LOO-CV |
-| `scipy` | Test statistici (Wilcoxon, Shapiro-Wilk) |
-| `matplotlib` | Visualizzazioni (script RF) |
+L'applicazione sarà disponibile all'indirizzo **http://localhost:5000**.
 
 ---
 
 ## Utilizzo
 
-### Web UI
+### Interfaccia Web
 
-1. Avvia il server con `python app.py`
-2. Apri il browser su `http://localhost:5000`
-3. Inserisci le 5 componenti funzionali del tuo progetto:
-   - **EI** (External Inputs) — form, import dati
-   - **EO** (External Outputs) — report, export
-   - **EQ** (External Enquiries) — interrogazioni, ricerche
-   - **ILF** (Internal Logical Files) — tabelle DB interne
-   - **EIF** (External Interface Files) — dati esterni in sola lettura
-4. Clicca **"Calcola Stima Effort"**
-5. Visualizza:
-   - Le 4 metriche di size (UFP, AFP, HLFPA, IFPA)
-   - Le predizioni di effort per ciascun modello SLR
-   - I diagnostici del modello (R², F-stat, equazione)
-   - I risultati dei test di ipotesi (Wilcoxon, effect size)
-
-### Preset disponibili
-
-| Preset | Dimensione tipica | Componenti |
-|--------|-------------------|------------|
-| Piccolo (€10K) | ~19 UFP | EI=10, EO=4, EQ=3, ILF=2, EIF=0 |
-| Medio (€80K) | ~148 UFP | EI=75, EO=30, EQ=25, ILF=14, EIF=4 |
-| Grande (€400K) | ~735 UFP | EI=350, EO=180, EQ=120, ILF=65, EIF=20 |
-| PNRR (€1.2M) | ~2200 UFP | EI=1000, EO=450, EQ=500, ILF=200, EIF=50 |
-
-### Random Forest (script standalone)
-
-Nella directory `random-forest-regression/` è presente uno script indipendente che addestra un modello Random Forest sullo stesso dataset:
-
-```bash
-cd random-forest-regression
-python train_rf.py
-```
-
-Produce metriche (MAE, RMSE, R², MMRE, PRED(25)) e un grafico di feature importance.
+1. **Selezione Dataset**: Consente di scegliere tra diversi benchmark storici (Albrecht, China, COCOMO, Desharnais, Maxwell, NASA, ecc.).
+2. **Configurazione Parametri**: Impostazione dei cluster Fuzzy ($k$ o *Auto* tramite indice Xie-Beni), Epoche, Learning Rate e Batch size.
+3. **Training & Validazione**: Avvia il calcolo della cross-validation, calcola le metriche (MAE, MAR, MdAPE, $R^2$) e disegna il grafico *Actual vs Predicted*.
+4. **Stima di Nuovi Progetti**: Inietta un form dinamico per inserire i valori dei parametri del progetto per calcolare lo sforzo stimato in tempo reale.
 
 ---
 
-## Dataset
+## Dataset Supportati
 
-### China Software Benchmark
-
-| Proprietà | Valore |
-|-----------|--------|
-| **File** | `software-cost-estimation/china.csv` (e `.arff`) |
-| **Provenienza** | China Software Process and Productivity Analysis Center |
-| **Tipo** | Cross-company |
-| **Progetti** | 499 |
-| **Attributi** | 19 (tutti numerici) |
-| **Valori mancanti** | Nessuno |
-
-### Variabili principali
-
-| Variabile | Descrizione |
-|-----------|-------------|
-| `AFP` | Adjusted Function Points |
-| `Input` | External Inputs (EI) |
-| `Output` | External Outputs (EO) |
-| `Enquiry` | External Enquiries (EQ) |
-| `File` | Internal Logical Files (ILF) |
-| `Interface` | External Interface Files (EIF) |
-| `Effort` | Effort reale in person-hours (**target**) |
-
-### Metriche derivate (calcolate da app.py)
-
-| Metrica | Formula | Fonte |
-|---------|---------|-------|
-| **UFP** | EI + EO + EQ + ILF + EIF | Standard FPA |
-| **AFP** | UFP × 1.06 (per nuovi progetti) | IFPUG con VAF medio |
-| **HLFPA** | 7×ILF + 5×EIF + 4×EI + 5×EO + 4×EQ | High-Level FPA (pesi complessità media) |
-| **IFPA** | 35×ILF + 15×EIF | Indicative FPA (solo dati BFC) |
-
-### Dati appalti pubblici
-
-La directory `public-procurement/` contiene dati CSV sugli appalti pubblici IT italiani (CPV 72230000-6) dal 2020 al 2026, utili per confronti con i costi di mercato reali.
-
----
-
-## Modelli e Risultati
-
-### Risultati sul China dataset (499 progetti, LOO-CV)
-
-| Modello | MAR | MdAPE | R² | F-stat |
-|---------|-----|-------|-----|--------|
-| MeanEFF (baseline) | 3700 | — | — | — |
-| MedianEFF (baseline) | 3117 | — | — | — |
-| **SLR AFP** | **2323** | — | 0.464 | 430.1 |
-| SLR UFP | 2381 | — | 0.447 | 401.9 |
-| SLR HLFPA | 2392 | — | 0.443 | 395.0 |
-| SLR IFPA | 3045 | — | 0.065 | 34.4 |
-
-### Test delle ipotesi (Wilcoxon, α Bonferroni = 0.025)
-
-| Modello | vs MeanEFF | Effect Size | vs MedianEFF | Effect Size |
-|---------|-----------|-------------|-------------|-------------|
-| AFP | p < 0.001 ✅ | large | p < 0.001 ✅ | small |
-| UFP | p < 0.001 ✅ | large | p < 0.001 ✅ | small |
-| HLFPA | p < 0.001 ✅ | large | p < 0.001 ✅ | small |
-| IFPA | p < 0.001 ✅ | medium | p < 0.001 ✅ | negligible |
-
-### Conclusioni scientifiche
-
-- ✅ **RQ1**: Tutti e 4 i modelli superano le baselines. AFP, UFP e HLFPA con effect size da small a large; IFPA solo con effect size negligible vs mediana.
-- ✅ **RQ3**: UFP e HLFPA sono statisticamente equivalenti ad AFP (effect size negligible) → possono sostituirlo come misure rapide.
-- ⚠️ **IFPA** è significativamente peggiore di AFP → sconsigliato come unico metodo di sizing.
+I file risiedono in `Software-estimation-datasets/` e coprono:
+* **Albrecht.arff**: 24 progetti, 7 attributi funzionali.
+* **China.arff**: 499 progetti, 18 attributi funzionali.
+* **COCOMO-81.csv**: 63 progetti basati sul modello COCOMO.
+* **Desharnais.csv**: 81 progetti.
+* **Maxwell.arff**: 62 progetti, 27 attributi.
+* **Nasa93.arff**: 93 progetti.
+* *Altri formati CSV e ARFF* caricati e normalizzati dinamicamente.
 
 ---
 
@@ -268,48 +131,21 @@ La directory `public-procurement/` contiene dati CSV sugli appalti pubblici IT i
 
 ```
 SPME-Project/
-├── app.py                          # Backend Flask + modelli SLR + test statistici
-├── requirements.txt                # Dipendenze Python
+├── app.py                          # Flask app, api routes, dataset loader
+├── estimation_model.py             # Implementazione Fuzzy C-Means e DCNN (PyTorch)
+├── requirements.txt                # Dipendenze con PyTorch CPU
 ├── README.md                       # Questo file
 │
 ├── templates/
-│   └── index.html                  # Frontend web (glassmorphism UI)
+│   └── index.html                  # Dashboard frontend (Outfit font, Glassmorphism)
 │
-├── software-cost-estimation/
-│   ├── china.csv                   # Dataset China (499 progetti)
-│   ├── china.arff                  # Stesso dataset in formato ARFF (Weka)
-│   ├── parameters.md               # Documentazione dei parametri
-│   └── analysis.md           # Analisi esplorativa del dataset
-│
-├── random-forest-regression/
-│   ├── train_rf.py                 # Script Random Forest standalone
-│   └── rf_visualization.png        # Grafico feature importance
-│
-├── public-procurement/
-│   ├── 2020.csv ... 2026.csv       # Dati appalti pubblici IT
-│   └── CPV 72230000-6              # Dettaglio codice CPV software
-│
-└── Assessing the effectiveness...pdf  # Paper di riferimento
+└── Software-estimation-datasets/   # File dei dataset storici
 ```
 
 ---
 
-## Riferimenti Bibliografici
+## Riferimenti
 
-1. **Di Martino, S., Ferrucci, F., Gravino, C., et al.** (2020). *Assessing the effectiveness of approximate functional sizing approaches for effort estimation*. Information and Software Technology, 123, 106308. [DOI:10.1016/j.infsof.2020.106308](https://doi.org/10.1016/j.infsof.2020.106308)
-
-2. **Albrecht, A.J.** (1979). *Measuring application development productivity*. Proc. of the Joint SHARE, GUIDE, and IBM Application Development Symposium, 83–92.
-
-3. **IFPUG** — International Function Point Users Group. [ifpug.org](http://www.ifpug.org)
-
-4. **COSMIC** — Common Software Measurement International Consortium. [cosmic-sizing.org](https://cosmic-sizing.org/)
-
-5. **Vargha, A., Delaney, H.D.** (2000). *A Critique and Improvement of the CL Common Language Effect Size Statistics of McGraw and Wong*. Journal of Educational and Behavioral Statistics, 25(2), 101–132.
-
-6. **Wilcoxon, F.** (1945). *Individual comparisons by ranking methods*. Biometrics Bulletin, 1(6), 80–83.
-
----
-
-## Licenza
-
-Progetto accademico — Università degli Studi di Napoli Federico II, DIETI.
+1. **Software effort estimation using convolutional neural network** (F-DCNN Paper).
+2. **Di Martino, S., Ferrucci, F., Gravino, C., et al.** (2020). *Assessing the effectiveness of approximate functional sizing approaches for effort estimation*. Information and Software Technology.
+3. **Vargha, A., Delaney, H.D.** (2000). *A Critique and Improvement of the CL Common Language Effect Size Statistics*.

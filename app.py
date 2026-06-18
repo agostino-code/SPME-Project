@@ -1,328 +1,318 @@
-import pandas as pd
+import os
+import sys
+import io
+import base64
 import numpy as np
-from flask import Flask, request, jsonify, render_template
-from sklearn.linear_model import LinearRegression
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.model_selection import LeaveOneOut, KFold, cross_val_predict
-from sklearn.metrics import mean_absolute_error
+import pandas as pd
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+from flask import Flask, render_template, request, jsonify
+from sklearn.model_selection import KFold, LeaveOneOut
+from sklearn.metrics import mean_absolute_error, r2_score
+
+# Add current path to sys.path
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from estimation_model import FuzzyDCNNRegressor
 
 app = Flask(__name__)
 
-# Global variables for models and statistics
-models = {}
-dataset_stats = {}
+DATASET_DIR = r"D:\SPME-Project\Software-estimation-datasets"
 
-def calculate_mar(y_true, y_pred):
-    # Mean of Absolute Residuals (MAR) - primary error metric
-    return float(np.mean(np.abs(y_true - y_pred)))
+# In-memory storage for the trained model and dataset details
+trained_models = {}
 
-def calculate_mdape(y_true, y_pred):
-    # Median Absolute Percentage Error (MdAPE) - robust relative error metric
-    mask = y_true > 0
-    return float(np.median(np.abs((y_true[mask] - y_pred[mask]) / y_true[mask])) * 100)
-
-def fit_log_model(X, y):
-    # Fit Linear Regression model in log-log space
-    X_arr = np.asarray(X, dtype=float) + 1
-    logX = np.log(X_arr)
-    if len(logX.shape) == 1:
-        logX = logX.reshape(-1, 1)
+def load_arff(filepath):
+    attributes = []
+    data_started = False
+    data_lines = []
+    with open(filepath, 'r', encoding='utf-8') as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith('%'):
+                continue
+            if line.lower().startswith('@relation'):
+                continue
+            if line.lower().startswith('@attribute'):
+                parts = line.split()
+                name = parts[1].strip("'\"")
+                attributes.append(name)
+                continue
+            if line.lower().startswith('@data'):
+                data_started = True
+                continue
+            if data_started:
+                data_lines.append(line)
+                
+    rows = []
+    for line in data_lines:
+        vals = []
+        for v in line.split(','):
+            v = v.strip()
+            if v == '?' or v == '':
+                vals.append(np.nan)
+            else:
+                try:
+                    vals.append(float(v))
+                except ValueError:
+                    vals.append(v)
+        rows.append(vals)
         
-    logy = np.log(np.asarray(y, dtype=float))
-    model = LinearRegression()
-    model.fit(logX, logy)
-    return model
+    df = pd.DataFrame(rows, columns=attributes)
+    df.dropna(inplace=True)
+    return df
 
-def loo_cv_log_predictions(X, y):
-    # Leave-One-Out Cross-Validation (LOO-CV) for log-log regression
-    X_arr = np.asarray(X, dtype=float) + 1
-    if len(X_arr.shape) == 1:
-        X_arr = X_arr.reshape(-1, 1)
-        
-    y_arr = np.asarray(y, dtype=float)
-    predictions = np.zeros_like(y_arr, dtype=float)
-    loo = LeaveOneOut()
-    for train_idx, test_idx in loo.split(X_arr):
-        model = LinearRegression()
-        model.fit(np.log(X_arr[train_idx]), np.log(y_arr[train_idx]))
-        predictions[test_idx[0]] = float(np.exp(model.predict(np.log(X_arr[test_idx]))[0]))
-    return predictions
+def load_dataset(filepath):
+    if filepath.endswith('.arff'):
+        return load_arff(filepath)
+    else:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            first_line = f.readline()
+        if ';' in first_line:
+            df = pd.read_csv(filepath, sep=';', na_values=['?'])
+        else:
+            df = pd.read_csv(filepath, na_values=['?'])
+        df.columns = [c.strip().strip("'\"") for c in df.columns]
+        df.dropna(inplace=True)
+        return df
 
-def train_models():
-    # 1. Load the dataset
-    df = pd.read_csv("software-cost-estimation/china.csv")
-
-    # 2. Calculate sizing metrics (UFP, HLFPA, IFPA)
-    # UFP is the sum of the five standard Base Functional Components (BFCs)
-    df['UFP'] = df[['Input', 'Output', 'Enquiry', 'File', 'Interface']].sum(axis=1)
+def detect_target_and_features(df):
+    col_lower = [c.lower() for c in df.columns]
     
-    # Train Simple Linear Regression model to map UFP to AFP
-    ufp_to_afp = LinearRegression()
-    ufp_to_afp.fit(df[['UFP']].values, df['AFP'].values)
-    models['ufp_to_afp'] = ufp_to_afp
-    ufp_afp_corr = float(df['UFP'].corr(df['AFP']))
-    
-    # HLFPA translates total size contributions to counts, then applies average HLFPA weights:
-    # ILF=7, EIF=5, EI=4, EO=5, EQ=4
-    df['HLFPA'] = df['Input'] + df['Output'] + df['Enquiry'] + (df['File'] / 10.0) * 7.0 + (df['Interface'] / 7.0) * 5.0
-    
-    # IFPA uses only estimated data functions counts with indicative weights: ILF=35, EIF=15
-    df['IFPA'] = (df['File'] / 10.0) * 35.0 + (df['Interface'] / 7.0) * 15.0
-
-    # 3. Extract target variable
-    effort = df['Effort'].values
-    mean_effort = float(np.mean(effort))
-    median_effort = float(np.median(effort))
-
-    mars = {}
-    mdapes = {}
-
-    # 4. Calculate Baselines (MeanEFF and MedianEFF) using LOO-CV
-    mean_cv_preds = np.zeros_like(effort, dtype=float)
-    median_cv_preds = np.zeros_like(effort, dtype=float)
-    loo = LeaveOneOut()
-    for train_idx, test_idx in loo.split(effort):
-        mean_cv_preds[test_idx[0]] = float(np.mean(effort[train_idx]))
-        median_cv_preds[test_idx[0]] = float(np.median(effort[train_idx]))
-
-    mars['MeanEFF'] = calculate_mar(effort, mean_cv_preds)
-    mdapes['MeanEFF'] = calculate_mdape(effort, mean_cv_preds)
-
-    mars['MedianEFF'] = calculate_mar(effort, median_cv_preds)
-    mdapes['MedianEFF'] = calculate_mdape(effort, median_cv_preds)
-
-    # 5. Train and evaluate SLR models (AFP, UFP, HLFPA, IFPA) using LOO-CV
-    size_metrics = ['AFP', 'UFP', 'HLFPA', 'IFPA']
-    for size_name in size_metrics:
-        X = df[size_name].values
-        cv_preds = loo_cv_log_predictions(X, effort)
-        model_key = f'slr_{size_name}'
-        
-        mars[model_key] = calculate_mar(effort, cv_preds)
-        mdapes[model_key] = calculate_mdape(effort, cv_preds)
-        models[model_key] = fit_log_model(X, effort)
-
-    # 6. Train and evaluate Calibrated MLR on 5 components using LOO-CV
-    components = ['Input', 'Output', 'Enquiry', 'File', 'Interface']
-    X_mlr = df[components].values
-    mlr_key = 'mlr_Calibrated'
-    
-    cv_preds_mlr = loo_cv_log_predictions(X_mlr, effort)
-    mars[mlr_key] = calculate_mar(effort, cv_preds_mlr)
-    mdapes[mlr_key] = calculate_mdape(effort, cv_preds_mlr)
-    models[mlr_key] = fit_log_model(X_mlr, effort)
-
-    # 7. Train and evaluate advanced improvement models using 10-Fold CV
-    cv = KFold(n_splits=10, shuffle=True, random_state=42)
-    lr = LinearRegression()
-
-    # Log-Log SLR (UFP)
-    y_log = np.log(effort + 1)
-    X_ufp_log = np.log(df[['UFP']].values + 1)
-    y_pred_log_ufp = cross_val_predict(lr, X_ufp_log, y_log, cv=cv)
-    y_pred_exp_ufp = np.exp(y_pred_log_ufp) - 1
-    impr_key = 'impr_loglog_UFP'
-    mars[impr_key] = calculate_mar(effort, y_pred_exp_ufp)
-    mdapes[impr_key] = calculate_mdape(effort, y_pred_exp_ufp)
-
-    # Log-Log SLR (HLFPA)
-    X_hlfpa_log = np.log(df[['HLFPA']].values + 1)
-    y_pred_log_hlfpa = cross_val_predict(lr, X_hlfpa_log, y_log, cv=cv)
-    y_pred_exp_hlfpa = np.exp(y_pred_log_hlfpa) - 1
-    impr_key = 'impr_loglog_HLFPA'
-    mars[impr_key] = calculate_mar(effort, y_pred_exp_hlfpa)
-    mdapes[impr_key] = calculate_mdape(effort, y_pred_exp_hlfpa)
-
-    # Log-Log MLR (5 components)
-    X_all_log = np.log(df[components].values + 1)
-    y_pred_log_all = cross_val_predict(lr, X_all_log, y_log, cv=cv)
-    y_pred_exp_all = np.exp(y_pred_log_all) - 1
-    impr_key = 'impr_loglog_MLR'
-    mars[impr_key] = calculate_mar(effort, y_pred_exp_all)
-    mdapes[impr_key] = calculate_mdape(effort, y_pred_exp_all)
-
-    # Random Forest (5 components)
-    rf_model = RandomForestRegressor(random_state=42, n_estimators=100)
-    y_pred_rf = cross_val_predict(rf_model, df[components].values, effort, cv=cv)
-    impr_key = 'impr_rf'
-    mars[impr_key] = calculate_mar(effort, y_pred_rf)
-    mdapes[impr_key] = calculate_mdape(effort, y_pred_rf)
-
-    # 8. Fit full models on entire dataset for production prediction
-    lr_loglog_ufp = LinearRegression()
-    lr_loglog_ufp.fit(X_ufp_log, y_log)
-    models['impr_loglog_UFP'] = lr_loglog_ufp
-
-    lr_loglog_hlfpa = LinearRegression()
-    lr_loglog_hlfpa.fit(X_hlfpa_log, y_log)
-    models['impr_loglog_HLFPA'] = lr_loglog_hlfpa
-
-    lr_loglog_mlr = LinearRegression()
-    lr_loglog_mlr.fit(X_all_log, y_log)
-    models['impr_loglog_MLR'] = lr_loglog_mlr
-
-    rf_full = RandomForestRegressor(random_state=42, n_estimators=100)
-    rf_full.fit(df[components].values, effort)
-    models['impr_rf'] = rf_full
-
-    # 9. Save global dataset statistics
-    global dataset_stats
-    dataset_stats = {
-        'total_projects': len(df),
-        'mean_effort': mean_effort,
-        'median_effort': median_effort,
-        'mean_afp': float(df['AFP'].mean()),
-        'mean_ufp': float(df['UFP'].mean()),
-        'ufp_afp_correlation': ufp_afp_corr,
-        'ufp_to_afp_a': float(ufp_to_afp.intercept_),
-        'ufp_to_afp_b': float(ufp_to_afp.coef_[0]),
-        'mars': {k: round(float(v), 2) if np.isfinite(v) else 0.0 for k, v in mars.items()},
-        'mdapes': {k: round(v, 2) for k, v in mdapes.items()},
-        'methodology': {
-            'paper': 'Di Martino, Ferrucci, Gravino et al. (IST 2020)',
-            'dataset': 'China Software Benchmark (499 projects, cross-company)',
-            'technique': 'SLR/MLR (log-log) + Random Forest',
-            'validation': 'Leave-One-Out Cross Validation (base models)',
-            'improvement_cv': '10-Fold Cross Validation (improvement models)',
-            'primary_metric': 'MAR (Mean of Absolute Residuals)',
-            'secondary_metric': 'MdAPE (Median Absolute Percentage Error)',
-            'note': f'COSMIC methods not replicable (no COSMIC data available). Log-Log transformations improve accuracy. UFP-AFP correlation: {ufp_afp_corr:.4f} (AFP = {ufp_to_afp.intercept_:.2f} + {ufp_to_afp.coef_[0]:.4f} * UFP).',
-        }
-    }
-
-    print("[OK] Predictive models trained and loaded successfully.")
-    print(f"     Dataset: {len(df)} projects")
-    print(f"     UFP-AFP Correlation: {ufp_afp_corr:.4f} (a={ufp_to_afp.intercept_:.4f}, b={ufp_to_afp.coef_[0]:.4f})")
-    print(f"     Baselines: MeanEFF MAR={mars['MeanEFF']:.0f}, MedianEFF MAR={mars['MedianEFF']:.0f}")
-    
-    for k in [f'slr_{sm}' for sm in size_metrics] + ['mlr_Calibrated']:
-        print(f"     {k}: MAR={mars[k]:.0f}, MdAPE={mdapes[k]:.1f}%")
-    
-    print("     --- Improvement Models (10-Fold CV) ---")
-    for k in ['impr_loglog_UFP', 'impr_loglog_HLFPA', 'impr_loglog_MLR', 'impr_rf']:
-        print(f"     {k}: MAR={mars[k]:.0f}, MdAPE={mdapes[k]:.1f}%")
-
-# Train models on startup
-train_models()
+    # Identify target column
+    target_candidates = ['effort', 'actual', 'act_effort', 'dev.eff.hrs.', 'actual.effort', 'mm', 'actual_effort', 'hh_cfp', 'hourstocount', 'totallaborcost']
+    target_col = None
+    for cand in target_candidates:
+        if cand in col_lower:
+            idx = col_lower.index(cand)
+            target_col = df.columns[idx]
+            break
+            
+    if target_col is None:
+        for c in df.columns:
+            if 'effort' in c.lower() or 'actual' in c.lower():
+                target_col = c
+                break
+        if target_col is None:
+            target_col = df.columns[-1]
+            
+    drop_candidates = ['id', 'project', 'client.code', 'num', 'recordnumber', 'projectname', 'project_no', 'projct', 'lneff', 'lnsize', 'n_effort']
+    drop_cols = [target_col]
+    for c in df.columns:
+        if c.lower() in drop_candidates or 'name' in c.lower() or 'code' in c.lower() or 'date' in c.lower():
+            drop_cols.append(c)
+            
+    feature_cols = []
+    for c in df.columns:
+        if c not in drop_cols:
+            if pd.api.types.is_numeric_dtype(df[c]):
+                feature_cols.append(c)
+                
+    return target_col, feature_cols
 
 @app.route('/')
-def home():
-    return render_template('index.html', stats=dataset_stats)
+def index():
+    return render_template('index.html')
 
-@app.route('/predict', methods=['POST'])
-def predict():
+@app.route('/api/datasets', methods=['GET'])
+def list_datasets():
     try:
-        data = request.json
-
-        # Extract counts from UI
-        input_data = {
-            'Input': float(data.get('Input', 0)),
-            'Output': float(data.get('Output', 0)),
-            'Enquiry': float(data.get('Enquiry', 0)),
-            'File': float(data.get('File', 0)),
-            'Interface': float(data.get('Interface', 0)),
-        }
-
-        # Convert counts to size contributions using average complexity weights
-        size_input = input_data['Input'] * 4.0
-        size_output = input_data['Output'] * 5.0
-        size_enquiry = input_data['Enquiry'] * 4.0
-        size_file = input_data['File'] * 10.0
-        size_interface = input_data['Interface'] * 7.0
-
-        # Calculate sizing metrics
-        ufp = size_input + size_output + size_enquiry + size_file + size_interface
-        
-        # Estimate AFP from UFP using the trained Simple Linear Regression model
-        if ufp == 0:
-            afp = 0.0
-        else:
-            afp = float(models['ufp_to_afp'].predict([[ufp]])[0])
-            afp = max(0.0, afp)
-        
-        # Calculate HLFPA and IFPA metrics directly from counts
-        hlfpa = (7.0 * input_data['File'] + 5.0 * input_data['Interface'] +
-                 4.0 * input_data['Input'] + 5.0 * input_data['Output'] + 4.0 * input_data['Enquiry'])
-                 
-        ifpa = 35.0 * input_data['File'] + 15.0 * input_data['Interface']
-
-        predictions = {}
-        is_empty_project = (ufp == 0)
-
-        if is_empty_project:
-            predictions['slr_AFP'] = 0.0
-            predictions['slr_UFP'] = 0.0
-            predictions['slr_HLFPA'] = 0.0
-            predictions['slr_IFPA'] = 0.0
-            predictions['mlr_Calibrated'] = 0.0
-            predictions['impr_loglog_UFP'] = 0.0
-            predictions['impr_loglog_HLFPA'] = 0.0
-            predictions['impr_loglog_MLR'] = 0.0
-            predictions['impr_rf'] = 0.0
-        else:
-            def predict_model(model_name, size_val):
-                # Predict effort in log-log space and detransform using exp
-                if isinstance(size_val, (list, np.ndarray)):
-                    safe_size = np.asarray(size_val, dtype=float) + 1
-                    log_pred = models[model_name].predict(np.log([safe_size]))[0]
-                else:
-                    if size_val <= 0:
-                        return 0.0
-                    safe_size = float(size_val) + 1
-                    log_pred = models[model_name].predict(np.log([[safe_size]]))[0]
-                return float(np.exp(log_pred))
-
-            predictions['slr_AFP'] = predict_model('slr_AFP', afp)
-            predictions['slr_UFP'] = predict_model('slr_UFP', ufp)
-            predictions['slr_HLFPA'] = predict_model('slr_HLFPA', hlfpa)
-            predictions['slr_IFPA'] = predict_model('slr_IFPA', ifpa)
-            
-            # Predict using Calibrated MLR
-            comps = [size_input, size_output, size_enquiry, size_file, size_interface]
-            predictions['mlr_Calibrated'] = predict_model('mlr_Calibrated', comps)
-
-            # Predict using advanced log-log models
-            if ufp > 0:
-                log_ufp_input = np.log(np.array([[ufp + 1]]))
-                predictions['impr_loglog_UFP'] = float(np.exp(models['impr_loglog_UFP'].predict(log_ufp_input)[0]) - 1)
-            else:
-                predictions['impr_loglog_UFP'] = 0.0
-
-            if hlfpa > 0:
-                log_hlfpa_input = np.log(np.array([[hlfpa + 1]]))
-                predictions['impr_loglog_HLFPA'] = float(np.exp(models['impr_loglog_HLFPA'].predict(log_hlfpa_input)[0]) - 1)
-            else:
-                predictions['impr_loglog_HLFPA'] = 0.0
-
-            comps_arr = np.array([size_input, size_output, size_enquiry, size_file, size_interface])
-            if np.any(comps_arr > 0):
-                log_comps_input = np.log(comps_arr.reshape(1, -1) + 1)
-                predictions['impr_loglog_MLR'] = float(np.exp(models['impr_loglog_MLR'].predict(log_comps_input)[0]) - 1)
-            else:
-                predictions['impr_loglog_MLR'] = 0.0
-
-            # Predict using Random Forest
-            predictions['impr_rf'] = float(models['impr_rf'].predict(comps_arr.reshape(1, -1))[0])
-
-        sizes = {
-            'UFP': round(ufp, 2), 'AFP': round(afp, 2),
-            'HLFPA': round(hlfpa, 2), 'IFPA': round(ifpa, 2)
-        }
-
-        return jsonify({
-            'success': True,
-            'sizes': sizes,
-            'predictions': {k: round(v, 2) for k, v in predictions.items()},
-            'mars': dataset_stats['mars'],
-            'mdapes': dataset_stats['mdapes'],
-            'methodology': dataset_stats['methodology'],
-        })
-
+        files = [f for f in os.listdir(DATASET_DIR) if f.endswith(('.csv', '.arff'))]
+        return jsonify({'datasets': sorted(files)})
     except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/load_dataset', methods=['GET'])
+def get_dataset_details():
+    filename = request.args.get('filename')
+    if not filename:
+        return jsonify({'error': 'Filename is required'}), 400
+        
+    filepath = os.path.join(DATASET_DIR, filename)
+    if not os.path.exists(filepath):
+        return jsonify({'error': 'File not found'}), 404
+        
+    try:
+        df = load_dataset(filepath)
+        target_col, feature_cols = detect_target_and_features(df)
+        
+        # Get dataset description (first few rows and columns)
+        summary = {
+            'rows': int(df.shape[0]),
+            'cols': int(df.shape[1]),
+            'target': target_col,
+            'features': feature_cols,
+            'preview': df.head(5).to_dict(orient='records')
+        }
+        return jsonify(summary)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/train', methods=['POST'])
+def train_model():
+    data = request.get_json() or {}
+    filename = data.get('filename')
+    n_clusters_input = data.get('n_clusters', 'auto')
+    epochs = int(data.get('epochs', 200))
+    lr = float(data.get('lr', 0.005))
+    batch_size = int(data.get('batch_size', 16))
+    
+    if not filename:
+        return jsonify({'error': 'Filename is required'}), 400
+        
+    filepath = os.path.join(DATASET_DIR, filename)
+    if not os.path.exists(filepath):
+        return jsonify({'error': 'File not found'}), 404
+        
+    try:
+        df = load_dataset(filepath)
+        target_col, feature_cols = detect_target_and_features(df)
+        
+        X = df[feature_cols].values
+        y = df[target_col].values
+        
+        n_samples = len(y)
+        
+        # Parse clusters
+        if n_clusters_input != 'auto':
+            try:
+                n_clusters = int(n_clusters_input)
+            except ValueError:
+                n_clusters = 'auto'
+        else:
+            n_clusters = 'auto'
+            
+        # Select cross-validation scheme
+        # If dataset is small, use LOO-CV. If larger, use 5-Fold CV.
+        if n_samples <= 100:
+            cv = LeaveOneOut()
+            cv_mode = "Leave-One-Out CV"
+        else:
+            cv = KFold(n_splits=5, shuffle=True, random_state=42)
+            cv_mode = "5-Fold Cross Validation"
+            
+        cv_preds = np.zeros(n_samples)
+        
+        # Run Cross-Validation
+        for train_idx, test_idx in cv.split(X):
+            X_tr, X_te = X[train_idx], X[test_idx]
+            y_tr, y_te = y[train_idx], y[test_idx]
+            
+            fold_reg = FuzzyDCNNRegressor(
+                n_clusters=n_clusters, 
+                epochs=epochs, 
+                lr=lr, 
+                batch_size=batch_size, 
+                random_state=42
+            )
+            fold_reg.fit(X_tr, y_tr)
+            cv_preds[test_idx] = fold_reg.predict(X_te)
+            
+        # Compute metrics based on cross-validation predictions
+        mae = float(mean_absolute_error(y, cv_preds))
+        mar = float(np.mean(np.abs(y - cv_preds) / np.maximum(y, 1e-8))) * 100.0
+        mdape = float(np.median(np.abs((y - cv_preds) / np.maximum(y, 1e-8)))) * 100.0
+        r2 = float(r2_score(y, cv_preds))
+        
+        # Train final model on complete dataset for serving queries
+        final_reg = FuzzyDCNNRegressor(
+            n_clusters=n_clusters, 
+            epochs=epochs, 
+            lr=lr, 
+            batch_size=batch_size, 
+            random_state=42
+        )
+        final_reg.fit(X, y)
+        
+        # Save model and columns info to memory
+        trained_models[filename] = {
+            'regressor': final_reg,
+            'features': feature_cols,
+            'target': target_col
+        }
+        
+        actual_k = final_reg.centroids.shape[0]
+        
+        # Generate Actual vs Predicted Plot
+        fig, ax = plt.subplots(figsize=(6, 5), dpi=100)
+        # Apply style adjustments for a modern dark-palette theme compatibility
+        ax.set_facecolor('#1e1e24')
+        fig.patch.set_facecolor('#121214')
+        
+        ax.scatter(y, cv_preds, color='#6366f1', alpha=0.7, edgecolors='w', s=40, label='Predictions')
+        max_val = max(np.max(y), np.max(cv_preds))
+        min_val = min(np.min(y), np.min(cv_preds))
+        ax.plot([min_val, max_val], [min_val, max_val], color='#ef4444', linestyle='--', linewidth=2, label='Perfect Estimation')
+        
+        ax.set_title("Actual vs Predicted Effort", color='#ffffff', fontsize=12, pad=10)
+        ax.set_xlabel(f"Actual {target_col}", color='#a1a1aa', fontsize=10)
+        ax.set_ylabel(f"Predicted {target_col}", color='#a1a1aa', fontsize=10)
+        
+        ax.tick_params(colors='#a1a1aa', which='both')
+        for spine in ax.spines.values():
+            spine.set_color('#3f3f46')
+            
+        ax.legend(facecolor='#1e1e24', edgecolor='#3f3f46', labelcolor='#ffffff')
+        ax.grid(True, linestyle=':', color='#3f3f46', alpha=0.5)
+        
+        plt.tight_layout()
+        
+        # Convert plot to base64
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png', facecolor=fig.get_facecolor(), edgecolor='none')
+        buf.seek(0)
+        plot_base64 = base64.b64encode(buf.getvalue()).decode('utf-8')
+        plt.close()
+        
         return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 400
+            'metrics': {
+                'mae': mae,
+                'mar': mar,
+                'mdape': mdape,
+                'r2': r2
+            },
+            'cv_mode': cv_mode,
+            'actual_clusters': actual_k,
+            'plot': plot_base64
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/predict', methods=['POST'])
+def predict_effort():
+    data = request.get_json() or {}
+    filename = data.get('filename')
+    inputs = data.get('inputs', {})
+    
+    if not filename:
+        return jsonify({'error': 'Filename is required'}), 400
+        
+    if filename not in trained_models:
+        return jsonify({'error': 'Model not trained yet. Please train first.'}), 400
+        
+    try:
+        model_info = trained_models[filename]
+        reg = model_info['regressor']
+        features = model_info['features']
+        
+        # Assemble feature values in correct order
+        x_input = []
+        for f in features:
+            if f not in inputs:
+                return jsonify({'error': f'Missing value for feature: {f}'}), 400
+            x_input.append(float(inputs[f]))
+            
+        X_test = np.array([x_input])
+        pred = float(reg.predict(X_test)[0])
+        
+        return jsonify({
+            'prediction': pred,
+            'target': model_info['target']
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(debug=True, port=5000)
