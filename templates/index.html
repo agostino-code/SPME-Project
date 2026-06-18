@@ -21,6 +21,10 @@
                 <strong>{{ stats.total_projects }} Progetti</strong>
             </div>
             <div class="stats-badge">
+                <span>Correlazione UFP-AFP</span>
+                <strong>{{ "%.4f"|format(stats.ufp_afp_correlation) }}</strong>
+            </div>
+            <div class="stats-badge">
                 <span>Baseline MAR (Media)</span>
                 <strong>±{{ stats.mars.MeanEFF | int }} ore</strong>
             </div>
@@ -154,22 +158,22 @@
                 <div class="section-title">Modelli Migliorati (Suggerimenti Applicati)</div>
                 <div class="model-card-grid" id="improvement-cards">
                     <div class="model-card" id="card-impr-loglog-ufp">
-                        <div class="model-title">Log-Log SLR (UFP) <span class="badge badge-info">Migliorato</span></div>
+                        <div class="model-title">Log-Log SLR (UFP)</div>
                         <div class="model-value" style="font-size: 1.3rem;" id="val-impr-loglog-ufp">0 <span>ore</span></div>
                         <div class="model-meta" id="meta-impr-loglog-ufp"></div>
                     </div>
                     <div class="model-card" id="card-impr-loglog-hlfpa">
-                        <div class="model-title">Log-Log SLR (HLFPA) <span class="badge badge-info">Migliorato</span></div>
+                        <div class="model-title">Log-Log SLR (HLFPA)</div>
                         <div class="model-value" style="font-size: 1.3rem;" id="val-impr-loglog-hlfpa">0 <span>ore</span></div>
                         <div class="model-meta" id="meta-impr-loglog-hlfpa"></div>
                     </div>
                     <div class="model-card" id="card-impr-loglog-mlr">
-                        <div class="model-title">Log-Log MLR (5 Comp.) <span class="badge badge-info">Migliorato</span></div>
+                        <div class="model-title">Log-Log MLR (5 Comp.)</div>
                         <div class="model-value" style="font-size: 1.3rem;" id="val-impr-loglog-mlr">0 <span>ore</span></div>
                         <div class="model-meta" id="meta-impr-loglog-mlr"></div>
                     </div>
                     <div class="model-card" id="card-impr-rf">
-                        <div class="model-title">Random Forest (5 Comp.) <span class="badge badge-warning">ML</span></div>
+                        <div class="model-title">Random Forest (5 Comp.)</div>
                         <div class="model-value" style="font-size: 1.3rem;" id="val-impr-rf">0 <span>ore</span></div>
                         <div class="model-meta" id="meta-impr-rf"></div>
                     </div>

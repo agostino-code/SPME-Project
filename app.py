@@ -56,6 +56,12 @@ def train_models():
     # UFP is the sum of the five standard Base Functional Components (BFCs)
     df['UFP'] = df[['Input', 'Output', 'Enquiry', 'File', 'Interface']].sum(axis=1)
     
+    # Train Simple Linear Regression model to map UFP to AFP
+    ufp_to_afp = LinearRegression()
+    ufp_to_afp.fit(df[['UFP']].values, df['AFP'].values)
+    models['ufp_to_afp'] = ufp_to_afp
+    ufp_afp_corr = float(df['UFP'].corr(df['AFP']))
+    
     # HLFPA translates total size contributions to counts, then applies average HLFPA weights:
     # ILF=7, EIF=5, EI=4, EO=5, EQ=4
     df['HLFPA'] = df['Input'] + df['Output'] + df['Enquiry'] + (df['File'] / 10.0) * 7.0 + (df['Interface'] / 7.0) * 5.0
@@ -167,6 +173,9 @@ def train_models():
         'median_effort': median_effort,
         'mean_afp': float(df['AFP'].mean()),
         'mean_ufp': float(df['UFP'].mean()),
+        'ufp_afp_correlation': ufp_afp_corr,
+        'ufp_to_afp_a': float(ufp_to_afp.intercept_),
+        'ufp_to_afp_b': float(ufp_to_afp.coef_[0]),
         'mars': {k: round(float(v), 2) if np.isfinite(v) else 0.0 for k, v in mars.items()},
         'mdapes': {k: round(v, 2) for k, v in mdapes.items()},
         'methodology': {
@@ -177,12 +186,13 @@ def train_models():
             'improvement_cv': '10-Fold Cross Validation (improvement models)',
             'primary_metric': 'MAR (Mean of Absolute Residuals)',
             'secondary_metric': 'MdAPE (Median Absolute Percentage Error)',
-            'note': 'COSMIC methods not replicable on this dataset (no COSMIC data available). Log-Log transformations significantly improve accuracy.',
+            'note': f'COSMIC methods not replicable (no COSMIC data available). Log-Log transformations improve accuracy. UFP-AFP correlation: {ufp_afp_corr:.4f} (AFP = {ufp_to_afp.intercept_:.2f} + {ufp_to_afp.coef_[0]:.4f} * UFP).',
         }
     }
 
     print("[OK] Predictive models trained and loaded successfully.")
     print(f"     Dataset: {len(df)} projects")
+    print(f"     UFP-AFP Correlation: {ufp_afp_corr:.4f} (a={ufp_to_afp.intercept_:.4f}, b={ufp_to_afp.coef_[0]:.4f})")
     print(f"     Baselines: MeanEFF MAR={mars['MeanEFF']:.0f}, MedianEFF MAR={mars['MedianEFF']:.0f}")
     
     for k in [f'slr_{sm}' for sm in size_metrics] + ['mlr_Calibrated']:
@@ -222,7 +232,13 @@ def predict():
 
         # Calculate sizing metrics
         ufp = size_input + size_output + size_enquiry + size_file + size_interface
-        afp = ufp * 1.06
+        
+        # Estimate AFP from UFP using the trained Simple Linear Regression model
+        if ufp == 0:
+            afp = 0.0
+        else:
+            afp = float(models['ufp_to_afp'].predict([[ufp]])[0])
+            afp = max(0.0, afp)
         
         # Calculate HLFPA and IFPA metrics directly from counts
         hlfpa = (7.0 * input_data['File'] + 5.0 * input_data['Interface'] +
@@ -231,7 +247,7 @@ def predict():
         ifpa = 35.0 * input_data['File'] + 15.0 * input_data['Interface']
 
         predictions = {}
-        is_empty_project = (ufp == 0 and afp == 0)
+        is_empty_project = (ufp == 0)
 
         if is_empty_project:
             predictions['slr_AFP'] = 0.0
