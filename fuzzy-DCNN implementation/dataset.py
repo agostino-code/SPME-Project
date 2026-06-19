@@ -7,6 +7,7 @@ class Dataset:
         # set the target column, drop it from the data
         self.target = self.data[target_column_name]
         self.data = self.data.drop(columns=[target_column_name])
+        self.target_column_name = target_column_name
         
         # filter out non-numeric columns
         self.data = self.data.select_dtypes(include=['number'])

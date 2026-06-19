@@ -8,11 +8,24 @@
 
 from fuzzy import FuzzyCMeans
 from dataset import Dataset
-from DCNN import DCNN
+from DCNN import EffortEstimator
 
 if __name__ == "__main__":
+    N_CLUSTERS = 9
+
+    # dataset
     dataset = Dataset("../Software-estimation-datasets/Desharnais.csv", target_column_name="Effort")
-    fuzzy_cmeans = FuzzyCMeans(dataset, num_clusters=9)
+    
+    # fuzzy C-means clustering
+    fuzzy_cmeans = FuzzyCMeans(dataset, num_clusters=N_CLUSTERS)
     mu = fuzzy_cmeans.fit_transform()
     
-    # train the DCNN regressor
+    # DCNN regressor training
+    n_features = mu.shape[1]
+    effort_estimator = EffortEstimator(n_features, N_CLUSTERS)
+    effort_estimator.fit(mu, dataset.training_data[dataset.target_column_name])
+    print ("Training completed.")
+
+    # evaluate the model on the test set
+    test_rmse = effort_estimator.evaluate(fuzzy_cmeans.transform(dataset.testing_data), dataset.testing_data[dataset.target_column_name])
+    print (f"Test RMSE: {test_rmse:.6f}")
