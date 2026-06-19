@@ -26,19 +26,20 @@ class FuzzyCMeans:
         self.m = m
         self.error = error
         self.maxiter = maxiter
-        self.centers = None
+        self.eps = 1e-10  # small value to avoid division by zero
+        self.centroids = None
         self.membership_degrees = None
 
     def fit(self):
         self.__fit_c_means()
-        self.__compute_membership_functions(self.centers, self.membership_degrees)
+        self.__compute_membership_functions()
 
     def __fit_c_means(self):
         n_features = self.dataset.training_data.shape[0]
         n_samples = self.dataset.training_data.shape[1]
 
         # expects a matrix of #features x #samples
-        self.centers, self.membership_degrees, _, _, _, _, fpc = fuzz.cluster.cmeans(
+        self.centroids, self.membership_degrees, _, _, _, _, fpc = fuzz.cluster.cmeans(
             self.dataset.training_data,
             c=self.num_clusters,
             m=self.m,
@@ -58,15 +59,15 @@ class FuzzyCMeans:
         print ("Fuzzy C-Means Clustering ended.")
         print ("fpc: ", fpc, "Fuzzy Partition Coefficient (1 is perfect, 0 is worst, above 0.5 is good).")
 
-        print ("Cluster centers shape: ", self.centers.shape)
+        print ("Cluster centers shape: ", self.centroids.shape)
         print ("Membership degrees shape: ", self.membership_degrees.shape)
 
-        assert self.centers.shape == (self.num_clusters, n_features), "Cluster centers shape mismatch."
+        assert self.centroids.shape == (self.num_clusters, n_features), "Cluster centers shape mismatch."
         assert self.membership_degrees.shape == (n_samples, self.num_clusters), "Membership degrees shape mismatch."
         print ("OK: Fuzzy C-Means Clustering completed successfully.")
 
-    def __compute_membership_functions(self, centroids, membership_degrees):
-        if centroids is None or membership_degrees is None:
+    def __compute_membership_functions(self):
+        if self.centroids is None or self.membership_degrees is None:
             raise ValueError("Centroids and membership degrees must be computed before computing membership functions.")
         
         # Compute Gaussian fuzzy membership functions based on cluster centers and membership degrees
@@ -77,39 +78,71 @@ class FuzzyCMeans:
         # Specifically, for each feature j, the centroids c1j, c2j, ..., ckj (the j-th column of the "centroids" input parameter) are
         # selected to calculate the width of fuzzy membership functions of that feature.
 
-        deltas = np.zeros((self.num_clusters, self.dataset.training_data.shape[0]))  # shape: (num_clusters, num_features)
-
+        n_features = self.dataset.training_data.shape[0]
+        self.deltas = np.zeros((self.num_clusters, n_features), dtype=float)  # shape: (num_clusters, num_features)
+        
+        # TODO review: vectorized by LLM
         for r in range(self.num_clusters):
-            for j in range(self.dataset.training_data.shape[0]):
-                # delta_rj = 1/n sum_{i=1}^{n} ( sqrt( \dfrac{-(x_ij - c_rj)^2}{2 * log(U_ir)}) ) )
+            # delta_rj = 1/n sum_{i=1}^{n} ( sqrt( \dfrac{-(x_ij - c_rj)^2}{2 * log(U_ir)}) ) )
 
-                # where U_ir is the membership degree of the i-th data point to the r-th cluster
-                # and x_ij is the j-th feature of the i-th data point, and c_rj is the j-th feature of the r-th cluster center.
+            # where U_ir is the membership degree of the i-th data point to the r-th cluster
+            # and x_ij is the j-th feature of the i-th data point, and c_rj is the j-th feature of the r-th cluster center.
 
-                # TODO review, vectorized by LLM
-                x_ij = self.dataset.training_data[j, :]  # shape: (n_samples,)
-                c_rj = centroids[r, j]  # scalar
-                U_ir = membership_degrees[:, r]  # shape: (n_samples,)
+            U_ir = np.clip(self.membership_degrees[:, r], self.eps, 1.0 - self.eps)
+            log_u = np.log(U_ir)
 
-                # compute the delta_rj
-                delta_rj = np.mean(np.sqrt(-(x_ij - c_rj) ** 2 / (2 * np.log(U_ir + 1e-10))))  # add small value to avoid log(0)
-                deltas[r, j] = delta_rj
+            for j in range(n_features):
+                x_ij = self.dataset.training_data[j, :]
+                c_rj = self.centroids[r, j]
 
-        self.mu = np.zeros((self.dataset.training_data.shape[1], self.num_clusters, self.dataset.training_data.shape[0]))  # shape: (n_samples, num_clusters, num_features)
+                vals = -(x_ij - c_rj) ** 2 / (2.0 * log_u)
+                vals = np.maximum(vals, 0.0)
+                delta_rj = np.mean(np.sqrt(vals))
+                self.deltas[r, j] = max(delta_rj, self.eps)
 
-        # compute mu for each data point
-        for i in range(self.dataset.training_data.shape[1]):
+        return self.deltas
+
+    def transform_one(self, sample):
+        if self.centroids is None or self.membership_degrees is None:
+            raise ValueError("Model not fitted. Call fit() first.")
+        
+        n_features = self.dataset.training_data.shape[0]
+        mu = np.zeros((self.num_clusters, n_features))  # shape: (num_clusters, num_features)
+        
+        assert sample.shape[0] == n_features, "Sample feature size does not match fitted data."
+
+        for j in range(n_features):
             for r in range(self.num_clusters):
-                # mu_irj = exp( -(x_ij - c_rj)^2 / (2 * delta_rj) )
-                x_ij = self.dataset.training_data[:, i]  # shape: (n_features,)
-                c_rj = centroids[r, :]  # shape: (n_features,)
-                delta_rj = deltas[r, :]  # shape: (n_features,)
+                c_rj = self.centroids[r, j]
+                d_rj = self.deltas[r, j]
+                mu[j, r] = np.exp(-((sample[j] - c_rj) ** 2) / (2.0 * (d_rj ** 2) + self.eps))
 
-                self.mu[:, r, i] = np.exp(-( ((x_ij - c_rj) / (2 * delta_rj + 1e-10)) ** 2 ) )  # add small value to avoid division by zero
+        return mu
+    
+    def transform(self, X):
+        if not self.centroids or not self.membership_degrees:
+            raise ValueError("Model not fitted. Call fit() first.")
 
-        assert self.mu.shape == (self.dataset.training_data.shape[1], self.num_clusters, self.dataset.training_data.shape[0]), "Mu shape mismatch."
-        print ("OK: Membership functions computed successfully.")
+        X = np.asarray(X, dtype=float)
+
+        if X.ndim == 1:
+            return self.transform_one(X)
+
+        if X.shape[0] != self.dataset.training_data.shape[0]:
+            raise ValueError("Input shape must be (n_features, n_samples) or a single sample.")
+
+        n_samples = X.shape[1]
+        n_features = X.shape[0]
+        batch = np.zeros((n_samples, n_features, self.num_clusters), dtype=float)
+
+        for i in range(n_samples):
+            batch[i] = self.transform_one(X[:, i])
+
+        return batch
+    
+    def fit_transform(self):
+        self.fit()
+        return self.transform(self.dataset.training_data)
 
     def predict(self, sample):
-        # TODO
-        return
+        return self.transform_one(sample)

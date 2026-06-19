@@ -13,10 +13,6 @@ from DCNN import DCNN
 if __name__ == "__main__":
     dataset = Dataset("../Software-estimation-datasets/Desharnais.csv", target_column_name="Effort")
     fuzzy_cmeans = FuzzyCMeans(dataset, num_clusters=9)
-    fuzzy_cmeans.fit()
+    mu = fuzzy_cmeans.fit_transform()
     
-    EPOCHS = 10
-    BATCH_SIZE = 32
-    dcnn = DCNN(input=fuzzy_cmeans.membership_degrees, output_shape=1)
-    dcnn.train(EPOCHS, BATCH_SIZE)
-
+    # train the DCNN regressor
