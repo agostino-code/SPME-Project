@@ -146,4 +146,5 @@ class EffortEstimator:
         y_pred = self.predict(mu_test)
         mse = ((y_pred - y_test) ** 2).mean()
         rmse = mse ** 0.5
-        return rmse
+        mae = (abs(y_pred - y_test)).mean()
+        return mae, rmse

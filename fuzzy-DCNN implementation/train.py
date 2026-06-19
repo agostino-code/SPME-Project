@@ -27,5 +27,6 @@ if __name__ == "__main__":
     print ("Training completed.")
 
     # evaluate the model on the test set
-    test_rmse = effort_estimator.evaluate(fuzzy_cmeans.transform(dataset.testing_data), dataset.testing_target.values)
+    test_mae, test_rmse = effort_estimator.evaluate(fuzzy_cmeans.transform(dataset.testing_data), dataset.testing_target.values)
+    print (f"Test MAE: {test_mae:.6f}")
     print (f"Test RMSE: {test_rmse:.6f}")
