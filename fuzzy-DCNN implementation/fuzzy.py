@@ -107,7 +107,7 @@ class FuzzyCMeans:
             raise ValueError("Model not fitted. Call fit() first.")
         
         n_features = self.dataset.training_data.shape[0]
-        mu = np.zeros((self.num_clusters, n_features))  # shape: (num_clusters, num_features)
+        mu = np.zeros((n_features, self.num_clusters))
         
         assert sample.shape[0] == n_features, "Sample feature size does not match fitted data."
 
@@ -120,7 +120,7 @@ class FuzzyCMeans:
         return mu
     
     def transform(self, X):
-        if not self.centroids or not self.membership_degrees:
+        if self.centroids is None or self.membership_degrees is None:
             raise ValueError("Model not fitted. Call fit() first.")
 
         X = np.asarray(X, dtype=float)

@@ -23,9 +23,9 @@ if __name__ == "__main__":
     # DCNN regressor training
     n_features = mu.shape[1]
     effort_estimator = EffortEstimator(n_features, N_CLUSTERS)
-    effort_estimator.fit(mu, dataset.training_data[dataset.target_column_name])
+    effort_estimator.fit(mu, dataset.training_target.values)
     print ("Training completed.")
 
     # evaluate the model on the test set
-    test_rmse = effort_estimator.evaluate(fuzzy_cmeans.transform(dataset.testing_data), dataset.testing_data[dataset.target_column_name])
+    test_rmse = effort_estimator.evaluate(fuzzy_cmeans.transform(dataset.testing_data), dataset.testing_target.values)
     print (f"Test RMSE: {test_rmse:.6f}")
