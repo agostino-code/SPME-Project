@@ -95,8 +95,8 @@ class FuzzyCMeans:
                 x_ij = self.dataset.training_data[j, :]
                 c_rj = self.centroids[r, j]
 
-                vals = -(x_ij - c_rj) ** 2 / (2.0 * log_u)
-                vals = np.maximum(vals, 0.0)
+                vals = (-(x_ij - c_rj) ** 2) / (2.0 * log_u)
+                vals = np.maximum(vals, 0.0) # edge case
                 delta_rj = np.mean(np.sqrt(vals))
                 self.deltas[r, j] = max(delta_rj, self.eps)
 
@@ -115,7 +115,7 @@ class FuzzyCMeans:
             for r in range(self.num_clusters):
                 c_rj = self.centroids[r, j]
                 d_rj = self.deltas[r, j]
-                mu[j, r] = np.exp(-((sample[j] - c_rj) ** 2) / (2.0 * (d_rj ** 2) + self.eps))
+                mu[j, r] = np.exp(-(((sample[j] - c_rj) / (2.0 * d_rj)) ** 2) + self.eps)
 
         return mu
     
@@ -158,13 +158,13 @@ class FuzzyCMeans:
 
         # Numerator: sum_j sum_i U_ij^2 * ||C_j - x_i||
         # dists[i, j] = ||x_i - C_j||
-        dists = np.sum((X[:, np.newaxis, :] - C[np.newaxis, :, :]), axis=2)  # (n, k)
+        dists = np.linalg.norm(X[:,None,:] - C[None,:,:], axis=2)
         numerator = np.sum((U ** 2) * dists)
 
         # Denominator: n * min_{j != t} ||C_j - C_t||^2
         # Pairwise centroid distances
         diff = C[:, np.newaxis, :] - C[np.newaxis, :, :]       # (k, k, n_features)
-        centroid_dists = np.sum(diff, axis=2)              # (k, k)
+        centroid_dists = np.linalg.norm(diff, axis=2)              # (k, k)
         np.fill_diagonal(centroid_dists, np.inf)                # exclude j == t
         denominator = n * centroid_dists.min()
 

@@ -1,8 +1,13 @@
 import pandas as pd
 
 class Dataset:
+    last_csv = None
+    last_data = None
     def __init__(self, csv, target_column_name, LOOCV=None):
-        data = pd.read_csv(csv)
+        if csv != Dataset.last_csv or Dataset.last_data is None:
+            Dataset.last_csv = csv
+            Dataset.last_data = pd.read_csv(csv)
+        data = Dataset.last_data.copy()
 
         # Separate target before splitting
         target = data[target_column_name]

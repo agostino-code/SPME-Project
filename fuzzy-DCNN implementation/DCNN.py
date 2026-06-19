@@ -30,6 +30,7 @@ function The DCNN model is trained by utilizing Adam
 optimizer and root-mean-squared errors as loss function.
 """
 
+import numpy as np
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
@@ -40,7 +41,7 @@ STRIDE = 1
 HIDDEN_LAYERS = [32, 16]
 DROPOUT_PROB = 0.2
 OPTIMIZER = torch.optim.Adam
-LOSS_FN = nn.MSELoss
+LOSS_FN = nn.MSELoss # TODO: paper uses RMSE, but MSE is more common and easier to optimize
 
 
 class MuDataset(Dataset):
@@ -63,7 +64,7 @@ class DCNNRegressor(nn.Module):
         super().__init__()
         self.conv1 = nn.Conv2d(1, KERNELS, kernel_size=KERNEL_SIZE, stride=STRIDE, padding=1)
         self.conv2 = nn.Conv2d(KERNELS, KERNELS, kernel_size=KERNEL_SIZE, stride=STRIDE, padding=1)
-        self.pool = nn.MaxPool2d(kernel_size=KERNEL_SIZE, stride=2)
+        self.pool = nn.MaxPool2d(kernel_size=KERNEL_SIZE, stride=STRIDE, padding=1)
         self.relu = nn.ReLU()
         self.dropout = nn.Dropout(DROPOUT_PROB)
 
@@ -75,6 +76,7 @@ class DCNNRegressor(nn.Module):
         self.fc1 = nn.Linear(flat_dim, HIDDEN_LAYERS[0])
         self.fc2 = nn.Linear(HIDDEN_LAYERS[0], HIDDEN_LAYERS[1])
         self.out = nn.Linear(HIDDEN_LAYERS[1], 1)
+        self.out_activation = nn.ReLU()
 
     def _forward_features(self, x):
         x = self.relu(self.conv1(x))
@@ -89,8 +91,8 @@ class DCNNRegressor(nn.Module):
         x = self.relu(self.fc1(x))
         x = self.dropout(x)
         x = self.relu(self.fc2(x))
-        x = self.dropout(x)
         x = self.out(x)
+        x = self.out_activation(x)
         return x
 
 
@@ -101,7 +103,7 @@ class EffortEstimator:
         self.lr = lr
         self.batch_size = batch_size
         self.epochs = epochs
-        self.loss_fn = nn.MSELoss()
+        self.loss_fn = LOSS_FN()
         self.optim = torch.optim.Adam(self.model.parameters(), lr=self.lr)
 
     def fit(self, mu_train, y_train, verbose=True):
@@ -144,7 +146,7 @@ class EffortEstimator:
     
     def evaluate(self, mu_test, y_test):
         y_pred = self.predict(mu_test)
-        mse = ((y_pred - y_test) ** 2).mean()
-        rmse = mse ** 0.5
-        mae = (abs(y_pred - y_test)).mean()
+        y_true = y_test.flatten()
+        mae = np.mean(np.abs(y_pred - y_true))
+        rmse = np.sqrt(np.mean((y_pred - y_true) ** 2))
         return mae, rmse
