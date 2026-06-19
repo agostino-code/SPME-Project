@@ -146,3 +146,26 @@ class FuzzyCMeans:
 
     def predict(self, sample):
         return self.transform_one(sample)
+    
+    def XB(self):
+        if self.centroids is None or self.membership_degrees is None:
+            raise ValueError("Model not fitted. Call fit() first.")
+
+        X = self.dataset.training_data.T  # shape: (n_samples, n_features)
+        U = self.membership_degrees        # shape: (n_samples, n_clusters)
+        C = self.centroids                 # shape: (n_clusters, n_features)
+        n = X.shape[0]
+
+        # Numerator: sum_j sum_i U_ij^2 * ||C_j - x_i||
+        # dists[i, j] = ||x_i - C_j||
+        dists = np.sum((X[:, np.newaxis, :] - C[np.newaxis, :, :]), axis=2)  # (n, k)
+        numerator = np.sum((U ** 2) * dists)
+
+        # Denominator: n * min_{j != t} ||C_j - C_t||^2
+        # Pairwise centroid distances
+        diff = C[:, np.newaxis, :] - C[np.newaxis, :, :]       # (k, k, n_features)
+        centroid_dists = np.sum(diff, axis=2)              # (k, k)
+        np.fill_diagonal(centroid_dists, np.inf)                # exclude j == t
+        denominator = n * centroid_dists.min()
+
+        return numerator / denominator

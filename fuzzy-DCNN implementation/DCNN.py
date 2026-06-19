@@ -63,7 +63,7 @@ class DCNNRegressor(nn.Module):
         super().__init__()
         self.conv1 = nn.Conv2d(1, KERNELS, kernel_size=KERNEL_SIZE, stride=STRIDE, padding=1)
         self.conv2 = nn.Conv2d(KERNELS, KERNELS, kernel_size=KERNEL_SIZE, stride=STRIDE, padding=1)
-        self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
+        self.pool = nn.MaxPool2d(kernel_size=KERNEL_SIZE, stride=2)
         self.relu = nn.ReLU()
         self.dropout = nn.Dropout(DROPOUT_PROB)
 
