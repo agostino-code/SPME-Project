@@ -41,8 +41,15 @@ STRIDE = 1
 HIDDEN_LAYERS = [32, 16]
 DROPOUT_PROB = 0.2
 OPTIMIZER = torch.optim.Adam
-LOSS_FN = nn.MSELoss # TODO: paper uses RMSE, but MSE is more common and easier to optimize
 
+class RMSELoss(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.mse = nn.MSELoss()
+    def forward(self, yhat, y):
+        return torch.sqrt(self.mse(yhat, y) + 1e-8)
+
+LOSS_FN = RMSELoss
 
 class MuDataset(Dataset):
     def __init__(self, mu_tensor, targets):

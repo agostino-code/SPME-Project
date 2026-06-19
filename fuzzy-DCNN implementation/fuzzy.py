@@ -57,7 +57,7 @@ class FuzzyCMeans:
         # cluster centers and membership degrees is all we need to compute the "membership functions" which are Gaussian fuzzy membership functions
 
         print ("Fuzzy C-Means Clustering ended.")
-        print ("fpc: ", fpc, "Fuzzy Partition Coefficient (1 is perfect, 0 is worst, above 0.5 is good).")
+        print (f"fpc: {fpc:.4f}, Fuzzy Partition Coefficient (1 is perfect, 0 is worst, above 0.5 is good).")
 
         print ("Cluster centers shape: ", self.centroids.shape)
         print ("Membership degrees shape: ", self.membership_degrees.shape)
@@ -115,7 +115,7 @@ class FuzzyCMeans:
             for r in range(self.num_clusters):
                 c_rj = self.centroids[r, j]
                 d_rj = self.deltas[r, j]
-                mu[j, r] = np.exp(-(((sample[j] - c_rj) / (2.0 * d_rj)) ** 2) + self.eps)
+                mu[j, r] = np.exp(-(((sample[j] - c_rj) / (2.0 * d_rj)) ** 2)) + self.eps
 
         return mu
     
@@ -156,12 +156,14 @@ class FuzzyCMeans:
         C = self.centroids                 # shape: (n_clusters, n_features)
         n = X.shape[0]
 
+        # usually the squared distances are used, but the original paper uses the Euclidean distance, so we will use that as well
+
         # Numerator: sum_j sum_i U_ij^2 * ||C_j - x_i||
         # dists[i, j] = ||x_i - C_j||
         dists = np.linalg.norm(X[:,None,:] - C[None,:,:], axis=2)
         numerator = np.sum((U ** 2) * dists)
 
-        # Denominator: n * min_{j != t} ||C_j - C_t||^2
+        # Denominator: n * min_{j != t} ||C_j - C_t||
         # Pairwise centroid distances
         diff = C[:, np.newaxis, :] - C[np.newaxis, :, :]       # (k, k, n_features)
         centroid_dists = np.linalg.norm(diff, axis=2)              # (k, k)

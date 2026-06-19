@@ -50,7 +50,6 @@ def train_and_evaluate(dataset_path, target_column_name, current_LOO):
     return test_mae, test_rmse
 
 if __name__ == "__main__":
-    N_CLUSTERS = 9
     DATASET_PATH = "../Software-estimation-datasets/Desharnais.csv"
     TARGET_COLUMN_NAME = "Effort"
 
