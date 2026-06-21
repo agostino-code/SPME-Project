@@ -118,10 +118,6 @@ class EffortEstimator:
         dl = DataLoader(ds, batch_size=self.batch_size, shuffle=True)
 
         self.model.train()
-        early_stopping_patience = 10
-        best_loss = float('inf')
-        best_state_dict = None
-        epochs_no_improve = 0
         for epoch in range(self.epochs):
             total_loss = 0.0
             for xb, yb in dl:
@@ -137,21 +133,9 @@ class EffortEstimator:
 
                 total_loss += loss.item() * xb.size(0)
 
-            if total_loss < best_loss:
-                best_loss = total_loss
-                epochs_no_improve = 0
-                best_state_dict = self.model.state_dict()
-            else:
-                epochs_no_improve += 1
-                if epochs_no_improve >= early_stopping_patience:
-                    if verbose:
-                        print(f"Early stopping at epoch {epoch+1}")
-                    break
             if verbose and (epoch == 0 or (epoch + 1) % 10 == 0 or epoch == self.epochs - 1):
                 print(f"epoch {epoch+1}/{self.epochs} loss={total_loss / len(ds):.6f}")
 
-        if best_state_dict is not None:
-            self.model.load_state_dict(best_state_dict)
         return self
 
     def predict(self, mu):
