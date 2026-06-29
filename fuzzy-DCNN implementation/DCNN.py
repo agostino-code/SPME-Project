@@ -104,7 +104,7 @@ class DCNNRegressor(nn.Module):
 
 
 class EffortEstimator:
-    def __init__(self, n_features, num_clusters, lr=1e-3, batch_size=32, epochs=100, device=None):
+    def __init__(self, n_features, num_clusters, lr=1e-3, batch_size=32, epochs=50, device=None):
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self.model = DCNNRegressor(n_features, num_clusters).to(self.device)
         self.lr = lr

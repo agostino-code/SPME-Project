@@ -13,6 +13,9 @@ class Dataset:
         target = data[target_column_name]
         features = data.drop(columns=[target_column_name]).select_dtypes(include=['number'])
 
+        # also drop id and Project (deshernais dataset specific, see other datasets for other columns to drop)
+        features = features.drop(columns=['id', 'Project'])
+
         # Split features and targets together
         if LOOCV == None:
             training_features = features.sample(frac=0.7, random_state=42)
