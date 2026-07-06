@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 
 class Dataset:
@@ -9,14 +10,18 @@ class Dataset:
             Dataset.last_data = pd.read_csv(csv)
         data = Dataset.last_data.copy()
 
-        # Separate target before splitting
-        target = data[target_column_name]
+        # Remove rows with -1 in 'TeamExp' or 'ManagerExp' if those columns exist
+        if {'TeamExp', 'ManagerExp'}.issubset(data.columns):
+            data = data[(data['TeamExp'] != -1) & (data['ManagerExp'] != -1)].copy().reset_index(drop=True)
+
+        target = data[target_column_name].astype(float)
         features = data.drop(columns=[target_column_name]).select_dtypes(include=['number'])
 
-        # also drop id and Project (deshernais dataset specific, see other datasets for other columns to drop)
-        features = features.drop(columns=['id', 'Project'])
+        # Drop irrelevant columns if they exist
+        drop_columns = [c for c in ['id', 'Project', 'Language', 'AdjFactor', 'Adjustment', 'YearEnd'] if c in features.columns]
+        if drop_columns:
+            features = features.drop(columns=drop_columns)
 
-        # Split features and targets together
         if LOOCV == None:
             training_features = features.sample(frac=0.7, random_state=42)
             testing_features  = features.drop(training_features.index)
@@ -24,19 +29,35 @@ class Dataset:
             training_features = features.drop(LOOCV)
             testing_features  = features.loc[[LOOCV]]
 
-        self.training_target = target.loc[training_features.index]
-        self.testing_target  = target.loc[testing_features.index]
+        training_target = np.log1p(target.loc[training_features.index].astype(float))
+        testing_target = np.log1p(target.loc[testing_features.index].astype(float))
 
-        assert set(training_features.columns) == set(testing_features.columns)
+        self.feature_min = training_features.min(axis=0)
+        self.feature_max = training_features.max(axis=0)
+        feature_range = self.feature_max - self.feature_min
+        feature_range[feature_range == 0] = 1.0
 
-        self.data          = features
-        self.training_data = training_features.values.T
-        self.testing_data  = testing_features.values.T
+        self.training_data = ((training_features - self.feature_min) / feature_range).values.T
+        self.testing_data = ((testing_features - self.feature_min) / feature_range).values.T
+
+        self.target_min = float(training_target.min())
+        self.target_max = float(training_target.max())
+        self.target_range = self.target_max - self.target_min if self.target_max != self.target_min else 1.0
+
+        self.training_target_scaled = ((training_target - self.target_min) / self.target_range)
+        self.testing_target_scaled = ((testing_target - self.target_min) / self.target_range)
+
+        self.data = features
+
+    def inverse_transform_target(self, y_scaled):
+        y_scaled = np.asarray(y_scaled, dtype=float)
+        # Ripristina da [0, 1] in log-space e torna alla scala originale dell'effort.
+        return np.expm1((y_scaled * self.target_range) + self.target_min)
 
     def print_info(self):
         print("Dataset Info:")
         print(self.data.info())
         print("\nTraining Target Column Info:")
-        print(self.training_target.info())
+        print(pd.Series(self.training_target_scaled).info())
         print("\nTesting Target Column Info:")
-        print(self.testing_target.info())
+        print(pd.Series(self.testing_target_scaled).info())

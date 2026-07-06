@@ -54,7 +54,8 @@ LOSS_FN = RMSELoss
 class MuDataset(Dataset):
     def __init__(self, mu_tensor, targets):
         self.X = torch.tensor(mu_tensor, dtype=torch.float32)
-        self.y = torch.tensor(targets, dtype=torch.float32).view(-1, 1)
+        # Fix: Convert the pandas Series to a numpy array explicitly
+        self.y = torch.tensor(np.asarray(targets), dtype=torch.float32).view(-1, 1)
 
     def __len__(self):
         return len(self.X)
@@ -72,9 +73,16 @@ class DCNNRegressor(nn.Module):
         self.conv1 = nn.Conv2d(1, KERNELS, kernel_size=KERNEL_SIZE, stride=STRIDE, padding=1)
         self.conv2 = nn.Conv2d(KERNELS, KERNELS, kernel_size=KERNEL_SIZE, stride=STRIDE, padding=1)
         self.pool = nn.MaxPool2d(kernel_size=KERNEL_SIZE, stride=STRIDE, padding=1)
+        
         self.relu = nn.ReLU()
         self.dropout = nn.Dropout(DROPOUT_PROB)
+        
+        # Inizializzazione bias
+        self.out = nn.Linear(HIDDEN_LAYERS[1], 1)
+        self.out.bias.data.fill_(0.1)
+        self.out_activation = nn.Softplus()
 
+        # Calcolo dinamico della dimensione flat
         dummy = torch.zeros(1, 1, n_features, num_clusters)
         with torch.no_grad():
             z = self._forward_features(dummy)
@@ -82,12 +90,10 @@ class DCNNRegressor(nn.Module):
 
         self.fc1 = nn.Linear(flat_dim, HIDDEN_LAYERS[0])
         self.fc2 = nn.Linear(HIDDEN_LAYERS[0], HIDDEN_LAYERS[1])
-        self.out = nn.Linear(HIDDEN_LAYERS[1], 1)
-        self.out_activation = nn.ReLU()
 
     def _forward_features(self, x):
         x = self.relu(self.conv1(x))
-        x = self.pool(x)
+        x = self.pool(x) # Pooling ora con stride 1
         x = self.relu(self.conv2(x))
         x = self.pool(x)
         return x
@@ -104,14 +110,19 @@ class DCNNRegressor(nn.Module):
 
 
 class EffortEstimator:
-    def __init__(self, n_features, num_clusters, lr=1e-3, batch_size=32, epochs=50, device=None):
+    def __init__(self, n_features, num_clusters, lr=1e-3, batch_size=16, epochs=50, weight_decay=1e-3, seed=1, device=None):
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+        torch.manual_seed(seed)
+        np.random.seed(seed)
         self.model = DCNNRegressor(n_features, num_clusters).to(self.device)
         self.lr = lr
         self.batch_size = batch_size
         self.epochs = epochs
-        self.loss_fn = LOSS_FN()
-        self.optim = torch.optim.Adam(self.model.parameters(), lr=self.lr)
+        
+        # RMSE Loss function is used in the original paper, but MSE is also a valid choice. Here we use RMSE for consistency with the paper.
+        self.loss_fn = RMSELoss() 
+        
+        self.optim = torch.optim.Adam(self.model.parameters(), lr=self.lr, weight_decay=weight_decay)
 
     def fit(self, mu_train, y_train, verbose=True):
         ds = MuDataset(mu_train, y_train)
@@ -151,9 +162,16 @@ class EffortEstimator:
             pred = self.model(x).cpu().numpy().reshape(-1)
         return pred
     
-    def evaluate(self, mu_test, y_test):
+    def evaluate(self, mu_test, y_test, inverse_transform=None):
         y_pred = self.predict(mu_test)
-        y_true = y_test.flatten()
+        
+        # FIX: Ensure y_test is a numpy array before flattening
+        y_true = np.asarray(y_test).flatten()
+        
+        if inverse_transform is not None:
+            y_pred = inverse_transform(y_pred)
+            y_true = inverse_transform(y_true)
+            
         mae = np.mean(np.abs(y_pred - y_true))
         rmse = np.sqrt(np.mean((y_pred - y_true) ** 2))
         return mae, rmse

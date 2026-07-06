@@ -1,6 +1,4 @@
-.venv
-.antigravitycli
 __pycache__
 .*
+!.python-version
 AGENTS.md
-paper.txt

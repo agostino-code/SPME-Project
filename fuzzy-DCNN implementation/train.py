@@ -6,11 +6,15 @@
 # a sample from the dataset is fed into the fuzzy classifier, which outputs membership degrees for each class (m x k matrix, where m is the number of attributes, k is the number of clusters)
 # the membership degrees are then fed into the DCNN regressor, which outputs a single value representing the predicted effort
 
+import numpy as np
 from fuzzy import FuzzyCMeans
 from dataset import Dataset
 from DCNN import EffortEstimator
 
 def elbow_XB(dataset, max_clusters=15):
+    n_samples = dataset.training_data.shape[1]
+    max_clusters = max(2, int(np.sqrt(n_samples)))
+    
     current_best_XB = float('inf')
     current_best_fuzzy_cmeans = None
     current_best_mu = None
@@ -41,11 +45,15 @@ def train_and_evaluate(dataset_path, target_column_name, current_LOO):
     # DCNN regressor training
     n_features = mu.shape[1]
     effort_estimator = EffortEstimator(n_features, n_clusters)
-    effort_estimator.fit(mu, dataset.training_target.values)
+    effort_estimator.fit(mu, dataset.training_target_scaled)
     print ("Training completed.")
 
     # evaluate the model on the test set
-    test_mae, test_rmse = effort_estimator.evaluate(fuzzy_cmeans.transform(dataset.testing_data), dataset.testing_target.values)
+    test_mae, test_rmse = effort_estimator.evaluate(
+        fuzzy_cmeans.transform(dataset.testing_data),
+        dataset.testing_target_scaled,
+        inverse_transform=dataset.inverse_transform_target,
+    )
     
     return test_mae, test_rmse
 

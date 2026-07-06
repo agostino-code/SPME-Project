@@ -96,7 +96,7 @@ class FuzzyCMeans:
                 c_rj = self.centroids[r, j]
 
                 vals = (-(x_ij - c_rj) ** 2) / (2.0 * log_u)
-                vals = np.maximum(vals, 0.0) # edge case
+                vals = np.maximum(vals, 0.0) #edge case: ensure non-negative before sqrt
                 delta_rj = np.mean(np.sqrt(vals))
                 self.deltas[r, j] = max(delta_rj, self.eps)
 
@@ -115,7 +115,7 @@ class FuzzyCMeans:
             for r in range(self.num_clusters):
                 c_rj = self.centroids[r, j]
                 d_rj = self.deltas[r, j]
-                mu[j, r] = np.exp(-(((sample[j] - c_rj) / (2.0 * d_rj)) ** 2)) + self.eps
+                mu[j, r] = np.exp(- ((sample[j] - c_rj) ** 2) / (2.0 * d_rj**2))
 
         return mu
     
@@ -156,18 +156,19 @@ class FuzzyCMeans:
         C = self.centroids                 # shape: (n_clusters, n_features)
         n = X.shape[0]
 
-        # usually the squared distances are used, but the original paper uses the Euclidean distance, so we will use that as well
+        # Standard XB uses squared Euclidean distances.
+        diff = X[:, None, :] - C[None, :, :]
+        dists_sq = np.sum(diff ** 2, axis=2)
+        numerator = np.sum((U ** 2) * dists_sq)
 
-        # Numerator: sum_j sum_i U_ij^2 * ||C_j - x_i||
-        # dists[i, j] = ||x_i - C_j||
-        dists = np.linalg.norm(X[:,None,:] - C[None,:,:], axis=2)
-        numerator = np.sum((U ** 2) * dists)
-
-        # Denominator: n * min_{j != t} ||C_j - C_t||
+        # Denominator: n * min_{j != t} ||C_j - C_t||^2
         # Pairwise centroid distances
-        diff = C[:, np.newaxis, :] - C[np.newaxis, :, :]       # (k, k, n_features)
-        centroid_dists = np.linalg.norm(diff, axis=2)              # (k, k)
-        np.fill_diagonal(centroid_dists, np.inf)                # exclude j == t
-        denominator = n * centroid_dists.min()
+        centroid_diff = C[:, np.newaxis, :] - C[np.newaxis, :, :]       # (k, k, n_features)
+        centroid_dists_sq = np.sum(centroid_diff ** 2, axis=2)              # (k, k)
+        np.fill_diagonal(centroid_dists_sq, np.inf)                # exclude j == t
+        denominator = n * centroid_dists_sq.min()
+
+        if denominator == 0:
+            return float('inf')
 
         return numerator / denominator
