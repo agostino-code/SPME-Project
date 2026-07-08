@@ -4,30 +4,35 @@ import pandas as pd
 class Dataset:
     last_csv = None
     last_data = None
-    def __init__(self, csv, target_column_name, LOOCV=None):
-        if csv != Dataset.last_csv or Dataset.last_data is None:
-            Dataset.last_csv = csv
-            Dataset.last_data = pd.read_csv(csv)
+    def __init__(self, arff_path, target_column_name='Effort', test_indices=None, selected_features=None):
+        if arff_path != Dataset.last_csv or Dataset.last_data is None:
+            Dataset.last_csv = arff_path
+            from scipy.io import arff
+            data, meta = arff.loadarff(arff_path)
+            Dataset.last_data = pd.DataFrame(data)
+            for col in Dataset.last_data.select_dtypes([object]).columns:
+                Dataset.last_data[col] = Dataset.last_data[col].apply(lambda x: x.decode('utf-8') if isinstance(x, bytes) else x)
+        
         data = Dataset.last_data.copy()
-
-        # Remove rows with -1 in 'TeamExp' or 'ManagerExp' if those columns exist
-        if {'TeamExp', 'ManagerExp'}.issubset(data.columns):
-            data = data[(data['TeamExp'] != -1) & (data['ManagerExp'] != -1)].copy().reset_index(drop=True)
-
         target = data[target_column_name].astype(float)
         features = data.drop(columns=[target_column_name]).select_dtypes(include=['number'])
 
-        # Drop irrelevant columns if they exist
-        drop_columns = [c for c in ['id', 'Project', 'Language', 'AdjFactor', 'Adjustment', 'YearEnd'] if c in features.columns]
-        if drop_columns:
-            features = features.drop(columns=drop_columns)
+        # Calcolo feature Di Martino (dataset China)
+        features['HLFPA'] = 7 * features['File'] + 5 * features['Interface'] + 4 * features['Input'] + 5 * features['Output'] + 4 * features['Enquiry']
+        features['IFPA'] = 35 * features['File'] + 15 * features['Interface']
 
-        if LOOCV == None:
+        if selected_features is not None:
+            features = features[[f for f in selected_features if f in features.columns]]
+        else:
+            drop_columns = ['ID', 'Duration', 'N_effort']
+            features = features.drop(columns=[c for c in drop_columns if c in features.columns])
+
+        if test_indices is None:
             training_features = features.sample(frac=0.7, random_state=42)
             testing_features  = features.drop(training_features.index)
         else:
-            training_features = features.drop(LOOCV)
-            testing_features  = features.loc[[LOOCV]]
+            testing_features = features.iloc[test_indices]
+            training_features = features.drop(features.index[test_indices])
 
         training_target = np.log1p(target.loc[training_features.index].astype(float))
         testing_target = np.log1p(target.loc[testing_features.index].astype(float))

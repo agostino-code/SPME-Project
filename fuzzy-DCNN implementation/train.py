@@ -1,19 +1,26 @@
-# training implementation of two-step regressor
-# - first step: train a fuzzy classifier (Fuzzy C-Means) to assign membership degrees to each class
-# - second step: train a DCNN regressor using the membership degrees as input features
-
-# pipeline:
-# a sample from the dataset is fed into the fuzzy classifier, which outputs membership degrees for each class (m x k matrix, where m is the number of attributes, k is the number of clusters)
-# the membership degrees are then fed into the DCNN regressor, which outputs a single value representing the predicted effort
-
+import argparse
 import numpy as np
+from sklearn.model_selection import KFold
 from fuzzy import FuzzyCMeans
 from dataset import Dataset
 from DCNN import EffortEstimator
 
-def elbow_XB(dataset, max_clusters=15):
+def parse_args():
+    parser = argparse.ArgumentParser(description="Train F-DCNN for Effort Estimation on China Dataset")
+    parser.add_argument('--features', type=str, nargs='+', default=None, help='List of selected features (e.g. HLFPA IFPA AFP)')
+    parser.add_argument('--clusters', type=int, default=10, help='Number of max clusters for elbow XB, or exact number if fixed')
+    parser.add_argument('--fixed_clusters', action='store_true', help='Use fixed number of clusters instead of elbow method')
+    parser.add_argument('--epochs', type=int, default=100)
+    parser.add_argument('--batch_size', type=int, default=32)
+    parser.add_argument('--lr', type=float, default=1e-3)
+    parser.add_argument('--dropout', type=float, default=0.3)
+    parser.add_argument('--kernels', type=int, default=16)
+    parser.add_argument('--hidden', type=int, nargs='+', default=[32, 16])
+    return parser.parse_args()
+
+def elbow_XB(dataset, max_clusters=10):
     n_samples = dataset.training_data.shape[1]
-    max_clusters = max(2, int(np.sqrt(n_samples)))
+    max_clusters = min(max_clusters, max(2, int(np.sqrt(n_samples))))
     
     current_best_XB = float('inf')
     current_best_fuzzy_cmeans = None
@@ -35,57 +42,75 @@ def elbow_XB(dataset, max_clusters=15):
 
     return current_best_fuzzy_cmeans, current_best_cluster_n, current_best_mu
 
-def train_and_evaluate(dataset_path, target_column_name, current_LOO):
-    # dataset
-    dataset = Dataset(dataset_path, target_column_name=target_column_name, LOOCV=current_LOO)
+def train_and_evaluate(test_indices, args):
+    dataset_path = '../Software-estimation-datasets/china.arff'
+    target_column = 'Effort'
+    dataset = Dataset(dataset_path, target_column_name=target_column, test_indices=test_indices, selected_features=args.features)
     
-    # fuzzy C-means clustering
-    fuzzy_cmeans, n_clusters, mu = elbow_XB(dataset, max_clusters=15)
+    if args.fixed_clusters:
+        fuzzy_cmeans = FuzzyCMeans(dataset, num_clusters=args.clusters)
+        mu = fuzzy_cmeans.fit_transform()
+        n_clusters = args.clusters
+    else:
+        fuzzy_cmeans, n_clusters, mu = elbow_XB(dataset, max_clusters=args.clusters)
 
-    # DCNN regressor training
     n_features = mu.shape[1]
-    effort_estimator = EffortEstimator(n_features, n_clusters)
-    effort_estimator.fit(mu, dataset.training_target_scaled)
-    print ("Training completed.")
-
-    # evaluate the model on the test set
-    test_mae, test_rmse = effort_estimator.evaluate(
+    effort_estimator = EffortEstimator(
+        n_features, n_clusters, 
+        lr=args.lr, 
+        batch_size=args.batch_size, 
+        epochs=args.epochs,
+        kernels=args.kernels,
+        hidden_layers=args.hidden,
+        dropout_prob=args.dropout,
+        target_min=dataset.target_min,
+        target_range=dataset.target_range
+    )
+    effort_estimator.fit(mu, dataset.training_target_scaled, verbose=True)
+    
+    test_mae, test_rmse, test_mdae = effort_estimator.evaluate(
         fuzzy_cmeans.transform(dataset.testing_data),
         dataset.testing_target_scaled,
         inverse_transform=dataset.inverse_transform_target,
     )
     
-    return test_mae, test_rmse
+    return test_mae, test_rmse, test_mdae
 
 if __name__ == "__main__":
-    DATASET_PATH = "../Software-estimation-datasets/Desharnais.csv"
-    TARGET_COLUMN_NAME = "Effort"
+    args = parse_args()
 
     avg_test_mae = 0
     avg_test_rmse = 0
+    avg_test_mdae = 0
     min_test_mae = float('inf')
     max_test_mae = float('-inf')
 
-    length = len(Dataset(DATASET_PATH, target_column_name=TARGET_COLUMN_NAME).data)
+    # Load just to get length
+    full_dataset = Dataset('../Software-estimation-datasets/china.arff', target_column_name='Effort', selected_features=args.features)
+    
+    kf = KFold(n_splits=10, shuffle=True, random_state=42)
+    splits = list(kf.split(full_dataset.data))
 
-    for current_LOO in range(length):
-        test_mae, test_rmse = train_and_evaluate(DATASET_PATH, TARGET_COLUMN_NAME, current_LOO)
+    for fold_idx, (train_idx, test_idx) in enumerate(splits):
+        print(f"Running fold {fold_idx + 1}/10")
+        test_mae, test_rmse, test_mdae = train_and_evaluate(test_idx, args)
+        print(f"Fold {fold_idx + 1} MAE: {test_mae:.4f} RMSE: {test_rmse:.4f} MdAE: {test_mdae:.4f}")
         avg_test_mae += test_mae
         avg_test_rmse += test_rmse
+        avg_test_mdae += test_mdae
         min_test_mae = min(min_test_mae, test_mae)
         max_test_mae = max(max_test_mae, test_mae)
 
-    avg_test_mae /= length
-    avg_test_rmse /= length
+    avg_test_mae /= 10
+    avg_test_rmse /= 10
+    avg_test_mdae /= 10
 
-    print(f"Average Test MAE: {avg_test_mae:.4f} (expected 1044 on Desharnais)")
+    print("=" * 40)
+    print("Configuration:")
+    print(args)
+    print("=" * 40)
+    print(f"Average Test MAE: {avg_test_mae:.4f}")
     print(f"Average Test RMSE: {avg_test_rmse:.4f}")
+    print(f"Average Test MdAE: {avg_test_mdae:.4f}")
     print(f"Minimum Test MAE: {min_test_mae:.4f}")
     print(f"Maximum Test MAE: {max_test_mae:.4f}")
-
-    """
-    Average Test MAE: 3507.1660 (expected 1044 on Desharnais)
-    Average Test RMSE: 3507.1660
-    Minimum Test MAE: 77.0171
-    Maximum Test MAE: 19872.7156
-    """
