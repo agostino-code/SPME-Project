@@ -1,24 +1,25 @@
-import argparse
 import numpy as np
-from sklearn.model_selection import KFold
+from sklearn.model_selection import KFold, LeaveOneOut
 from fuzzy import FuzzyCMeans
 from dataset import Dataset
 from DCNN import EffortEstimator
 
-def parse_args():
-    parser = argparse.ArgumentParser(description="Train F-DCNN for Effort Estimation on China Dataset")
-    parser.add_argument('--features', type=str, nargs='+', default=None, help='List of selected features (e.g. HLFPA IFPA AFP)')
-    parser.add_argument('--clusters', type=int, default=10, help='Number of max clusters for elbow XB, or exact number if fixed')
-    parser.add_argument('--fixed_clusters', action='store_true', help='Use fixed number of clusters instead of elbow method')
-    parser.add_argument('--epochs', type=int, default=100)
-    parser.add_argument('--batch_size', type=int, default=32)
-    parser.add_argument('--lr', type=float, default=1e-3)
-    parser.add_argument('--dropout', type=float, default=0.3)
-    parser.add_argument('--kernels', type=int, default=16)
-    parser.add_argument('--hidden', type=int, nargs='+', default=[32, 16])
-    return parser.parse_args()
+class Config:
+    def __init__(self):
+        self.max_clusters = 10
+        self.fixed_clusters = False
+        self.epochs = 150
+        self.weight_decay = 1e-3
+        self.batch_size = 16
+        self.lr = 1e-3
 
-def elbow_XB(dataset, max_clusters=10):
+    def __str__(self):
+        return str(self.__dict__)
+
+def parse_args():
+    return Config()
+
+def elbow_XB(dataset, max_clusters):
     n_samples = dataset.training_data.shape[1]
     max_clusters = min(max_clusters, max(2, int(np.sqrt(n_samples))))
     
@@ -45,14 +46,15 @@ def elbow_XB(dataset, max_clusters=10):
 def train_and_evaluate(test_indices, args):
     dataset_path = '../Software-estimation-datasets/china.arff'
     target_column = 'Effort'
-    dataset = Dataset(dataset_path, target_column_name=target_column, test_indices=test_indices, selected_features=args.features)
+    dataset = Dataset(dataset_path, target_column_name=target_column, test_indices=test_indices)
     
     if args.fixed_clusters:
-        fuzzy_cmeans = FuzzyCMeans(dataset, num_clusters=args.clusters)
+        fuzzy_cmeans = FuzzyCMeans(dataset, num_clusters=args.max_clusters)
         mu = fuzzy_cmeans.fit_transform()
-        n_clusters = args.clusters
+        n_clusters = args.max_clusters
     else:
-        fuzzy_cmeans, n_clusters, mu = elbow_XB(dataset, max_clusters=args.clusters)
+        fuzzy_cmeans, n_clusters, mu = elbow_XB(dataset, max_clusters=args.max_clusters)
+        print(f"[*] Elbow method selected {n_clusters} clusters (max tested was {int(np.sqrt(dataset.training_data.shape[1]))})")
 
     n_features = mu.shape[1]
     effort_estimator = EffortEstimator(
@@ -60,9 +62,7 @@ def train_and_evaluate(test_indices, args):
         lr=args.lr, 
         batch_size=args.batch_size, 
         epochs=args.epochs,
-        kernels=args.kernels,
-        hidden_layers=args.hidden,
-        dropout_prob=args.dropout,
+        weight_decay=args.weight_decay,
         target_min=dataset.target_min,
         target_range=dataset.target_range
     )
@@ -86,28 +86,32 @@ if __name__ == "__main__":
     max_test_mae = float('-inf')
 
     # Load just to get length
-    full_dataset = Dataset('../Software-estimation-datasets/china.arff', target_column_name='Effort', selected_features=args.features)
+    full_dataset = Dataset('../Software-estimation-datasets/china.arff', target_column_name='Effort')
     
+    # --- INIZIO MODIFICA LOOCV ---
+    #loo = LeaveOneOut()
+    #splits = list(loo.split(full_dataset.data))
     kf = KFold(n_splits=10, shuffle=True, random_state=42)
     splits = list(kf.split(full_dataset.data))
+    n_splits = len(splits)
 
     for fold_idx, (train_idx, test_idx) in enumerate(splits):
-        print(f"Running fold {fold_idx + 1}/10")
+        print(f"Running iteration {fold_idx + 1}/{n_splits}")
         test_mae, test_rmse, test_mdae = train_and_evaluate(test_idx, args)
-        print(f"Fold {fold_idx + 1} MAE: {test_mae:.4f} RMSE: {test_rmse:.4f} MdAE: {test_mdae:.4f}")
+        
+        # Stampa l'errore per il singolo sample (opzionale, utile per debug)
+        print(f"Iteration {fold_idx + 1} MAE: {test_mae:.4f} RMSE: {test_rmse:.4f}")
+        
         avg_test_mae += test_mae
         avg_test_rmse += test_rmse
         avg_test_mdae += test_mdae
         min_test_mae = min(min_test_mae, test_mae)
         max_test_mae = max(max_test_mae, test_mae)
 
-    avg_test_mae /= 10
-    avg_test_rmse /= 10
-    avg_test_mdae /= 10
+    avg_test_mae /= n_splits
+    avg_test_rmse /= n_splits
+    avg_test_mdae /= n_splits
 
-    print("=" * 40)
-    print("Configuration:")
-    print(args)
     print("=" * 40)
     print(f"Average Test MAE: {avg_test_mae:.4f}")
     print(f"Average Test RMSE: {avg_test_rmse:.4f}")

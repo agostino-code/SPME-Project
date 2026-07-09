@@ -56,15 +56,15 @@ class FuzzyCMeans:
 
         # cluster centers and membership degrees is all we need to compute the "membership functions" which are Gaussian fuzzy membership functions
 
-        print ("Fuzzy C-Means Clustering ended.")
-        print (f"fpc: {fpc:.4f}, Fuzzy Partition Coefficient (1 is perfect, 0 is worst, above 0.5 is good).")
+        # print ("Fuzzy C-Means Clustering ended.")
+        # print (f"fpc: {fpc:.4f}, Fuzzy Partition Coefficient (1 is perfect, 0 is worst, above 0.5 is good).")
 
-        print ("Cluster centers shape: ", self.centroids.shape)
-        print ("Membership degrees shape: ", self.membership_degrees.shape)
+        # print ("Cluster centers shape: ", self.centroids.shape)
+        # print ("Membership degrees shape: ", self.membership_degrees.shape)
 
         assert self.centroids.shape == (self.num_clusters, n_features), "Cluster centers shape mismatch."
         assert self.membership_degrees.shape == (n_samples, self.num_clusters), "Membership degrees shape mismatch."
-        print ("OK: Fuzzy C-Means Clustering completed successfully.")
+        # print ("OK: Fuzzy C-Means Clustering completed successfully.")
 
     def __compute_membership_functions(self):
         if self.centroids is None or self.membership_degrees is None:

@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Software Effort & Cost Estimator</title>
+    <meta name="description" content="Strumento accademico per la stima dell'effort software. Confronto tra modelli SLR di Di Martino e Fuzzy-DCNN di Azzeh.">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+    <header>
+        <div class="logo-section">
+            <h1>Software Effort & Cost Estimator</h1>
+            <p>Predicting Person-Hours using validated SLR and DCNN models</p>
+        </div>
+        <div class="stats-badge-container">
+            <div class="stats-badge">
+                <span>Database Storico</span>
+                <strong>{{ stats.total_projects }} Progetti</strong>
+            </div>
+            <div class="stats-badge">
+                <span>Correlazione UFP-AFP</span>
+                <strong>{{ "%.4f"|format(stats.ufp_afp_correlation) }}</strong>
+            </div>
+            <div class="stats-badge">
+                <span>Baseline MAR (Media)</span>
+                <strong>±{{ stats.mars.MeanEFF | int }} ore</strong>
+            </div>
+            <div class="stats-badge">
+                <span>Baseline MAR (Mediana)</span>
+                <strong>±{{ stats.mars.MedianEFF | int }} ore</strong>
+            </div>
+        </div>
+    </header>
+
+    <main class="main-grid">
+        <!-- ============ LEFT COLUMN ============ -->
+        <div class="left-column">
+
+            <!-- Input Form -->
+            <div class="glass-card">
+                <h2>Parametri di Progetto</h2>
+                
+                <div class="presets-row">
+                    <span style="align-self: center; font-size: 0.8rem; color: var(--text-muted); font-weight: 600; margin-right: 0.2rem;">Preimpostati:</span>
+                    <button type="button" class="preset-btn" onclick="loadPreset('small')">Piccolo (€10K)</button>
+                    <button type="button" class="preset-btn" onclick="loadPreset('medium')">Medio (€80K)</button>
+                    <button type="button" class="preset-btn" onclick="loadPreset('large')">Grande (€400K)</button>
+                    <button type="button" class="preset-btn" onclick="loadPreset('mega')">PNRR (€1.2M)</button>
+                </div>
+
+                {% if not is_loaded %}
+                <div class="error-alert" style="display:block;">⚠️ Modelli non caricati. Esegui <code>train.py</code> prima di utilizzare lo strumento.</div>
+                {% endif %}
+                <div id="error-box" class="error-alert"></div>
+
+                <form id="predict-form">
+                    <div class="form-grid">
+                        <div class="input-group">
+                            <label for="Input">External Inputs (EI) <span>Inserimento dati</span></label>
+                            <input type="number" id="Input" min="0" value="0" required>
+                        </div>
+                        <div class="input-group">
+                            <label for="Output">External Outputs (EO) <span>Report / Export</span></label>
+                            <input type="number" id="Output" min="0" value="0" required>
+                        </div>
+                        <div class="input-group">
+                            <label for="Enquiry">External Enquiries (EQ) <span>Interrogazioni</span></label>
+                            <input type="number" id="Enquiry" min="0" value="0" required>
+                        </div>
+                        <div class="input-group">
+                            <label for="File">Internal Logical Files (ILF) <span>Tabelle DB interne</span></label>
+                            <input type="number" id="File" min="0" value="0" required>
+                        </div>
+                        <div class="input-group" style="grid-column: span 2;">
+                            <label for="Interface">External Interface Files (EIF) <span>Sola lettura esterne</span></label>
+                            <input type="number" id="Interface" min="0" value="0" required>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <div class="form-section-title">Metriche di Manutenzione</div>
+                        <div class="form-grid">
+                            <div class="input-group">
+                                <label for="Added">Added FP</label>
+                                <input type="number" id="Added" min="0" value="0">
+                            </div>
+                            <div class="input-group">
+                                <label for="Changed">Changed FP</label>
+                                <input type="number" id="Changed" min="0" value="0">
+                            </div>
+                            <div class="input-group">
+                                <label for="Deleted">Deleted FP</label>
+                                <input type="number" id="Deleted" min="0" value="0">
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="submit-btn" {% if not is_loaded %}disabled style="opacity:0.5;"{% endif %}>
+                        <span id="btn-text">Calcola Effort</span>
+                        <div id="btn-loader" class="loader"></div>
+                    </button>
+                </form>
+            </div>
+
+            <!-- Error Comparison Panel (always visible if metrics available) -->
+            {% if metrics %}
+            <div class="glass-card">
+                <h2>Confronto Errori — Test Set</h2>
+                <div class="error-comparison">
+                    <div class="error-model-card lr-card">
+                        <div class="error-model-name">Regressione Lineare</div>
+                        <div class="error-metric-row">
+                            <span class="error-metric-label">MAE</span>
+                            <span class="error-metric-value">{{ "%.2f"|format(metrics.lin_mae) }}</span>
+                        </div>
+                        <div class="error-metric-row">
+                            <span class="error-metric-label">RMSE</span>
+                            <span class="error-metric-value">{{ "%.2f"|format(metrics.lin_rmse) }}</span>
+                        </div>
+                    </div>
+                    <div class="error-model-card dcnn-card">
+                        <div class="error-model-name">Fuzzy-DCNN</div>
+                        <div class="error-metric-row">
+                            <span class="error-metric-label">MAE</span>
+                            <span class="error-metric-value">{{ "%.2f"|format(metrics.dcnn_mae) }}</span>
+                        </div>
+                        <div class="error-metric-row">
+                            <span class="error-metric-label">RMSE</span>
+                            <span class="error-metric-value">{{ "%.2f"|format(metrics.dcnn_rmse) }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Visual bars -->
+                <div class="error-bar-container">
+                    <div class="error-bar-row">
+                        <div class="error-bar-header">
+                            <span class="error-bar-label">MAE — Regressione Lineare</span>
+                            <span class="error-bar-val" style="color: var(--accent);">{{ "%.2f"|format(metrics.lin_mae) }}</span>
+                        </div>
+                        <div class="error-bar-track">
+                            <div class="error-bar-fill lr" id="bar-lr-mae" style="width: 0%;"></div>
+                        </div>
+                    </div>
+                    <div class="error-bar-row">
+                        <div class="error-bar-header">
+                            <span class="error-bar-label">MAE — Fuzzy-DCNN</span>
+                            <span class="error-bar-val" style="color: var(--primary);">{{ "%.2f"|format(metrics.dcnn_mae) }}</span>
+                        </div>
+                        <div class="error-bar-track">
+                            <div class="error-bar-fill dcnn" id="bar-dcnn-mae" style="width: 0%;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Improvement -->
+                {% set mae_improvement = ((metrics.lin_mae - metrics.dcnn_mae) / metrics.lin_mae * 100) if metrics.lin_mae > 0 else 0 %}
+                <div class="improvement">
+                    {% if mae_improvement > 0 %}
+                    <div class="improvement-value">-{{ "%.1f"|format(mae_improvement) }}%</div>
+                    <div class="improvement-label">Riduzione errore DCNN rispetto a LR (MAE)</div>
+                    {% elif mae_improvement < 0 %}
+                    <div class="improvement-value" style="background: linear-gradient(135deg, var(--accent), var(--purple)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">+{{ "%.1f"|format(mae_improvement|abs) }}%</div>
+                    <div class="improvement-label">LR performa meglio di DCNN (MAE)</div>
+                    {% else %}
+                    <div class="improvement-value">≈</div>
+                    <div class="improvement-label">Modelli equivalenti (MAE)</div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- ============ RIGHT COLUMN ============ -->
+        <div class="right-column">
+
+            <!-- Placeholder -->
+            <div id="placeholder" class="placeholder-results">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="64" height="64">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5m.75-9l3-3 2.148 2.148A12.061 12.061 0 0116.5 7.605"/>
+                </svg>
+                <h3>In attesa di input</h3>
+                <p>Inserisci i parametri per confrontare i modelli di stima.</p>
+            </div>
+
+            <!-- Results -->
+            <div id="results-container" class="results-container">
+
+                <!-- Dimensional Metrics -->
+                <div class="glass-card">
+                    <h2>Metriche Dimensionali</h2>
+                    <div class="metrics-row">
+                        <div class="metric-item">
+                            <span>HLFPA</span>
+                            <strong id="res-hlfpa">0</strong>
+                        </div>
+                        <div class="metric-item">
+                            <span>IFPA</span>
+                            <strong id="res-ifpa">0</strong>
+                        </div>
+                        <div class="metric-item">
+                            <span>FP</span>
+                            <strong id="res-fp">0</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Prediction Cards -->
+                <div class="glass-card">
+                    <h2>Stime dei Modelli</h2>
+                    <div class="prediction-grid" id="prediction-grid">
+                        <!-- 4 cards populated via JS -->
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <p>Di Martino et al. (SLR) · Azzeh et al. (F-DCNN)</p>
+    </footer>
+
+    <script>
+    /* =================================================================
+       ERROR BARS ANIMATION (on page load)
+       ================================================================= */
+    (function animateErrorBars() {
+        const lrBar = document.getElementById('bar-lr-mae');
+        const dcnnBar = document.getElementById('bar-dcnn-mae');
+        if (!lrBar || !dcnnBar) return;
+
+        const lrMAE = parseFloat('{{ metrics.lin_mae if metrics else 0 }}');
+        const dcnnMAE = parseFloat('{{ metrics.dcnn_mae if metrics else 0 }}');
+        const maxMAE = Math.max(lrMAE, dcnnMAE, 1);
+
+        setTimeout(() => {
+            lrBar.style.width = ((lrMAE / maxMAE) * 100).toFixed(1) + '%';
+            dcnnBar.style.width = ((dcnnMAE / maxMAE) * 100).toFixed(1) + '%';
+        }, 400);
+    })();
+
+    /* =================================================================
+       PRESETS LOGIC
+       ================================================================= */
+    function loadPreset(type) {
+        if (type === 'small') {
+            document.getElementById('Input').value = 10;
+            document.getElementById('Output').value = 4;
+            document.getElementById('Enquiry').value = 3;
+            document.getElementById('File').value = 2;
+            document.getElementById('Interface').value = 0;
+            document.getElementById('Added').value = 0;
+            document.getElementById('Changed').value = 0;
+            document.getElementById('Deleted').value = 0;
+        } else if (type === 'medium') {
+            document.getElementById('Input').value = 75;
+            document.getElementById('Output').value = 30;
+            document.getElementById('Enquiry').value = 25;
+            document.getElementById('File').value = 14;
+            document.getElementById('Interface').value = 4;
+            document.getElementById('Added').value = 0;
+            document.getElementById('Changed').value = 0;
+            document.getElementById('Deleted').value = 0;
+        } else if (type === 'large') {
+            document.getElementById('Input').value = 350;
+            document.getElementById('Output').value = 180;
+            document.getElementById('Enquiry').value = 120;
+            document.getElementById('File').value = 65;
+            document.getElementById('Interface').value = 20;
+            document.getElementById('Added').value = 0;
+            document.getElementById('Changed').value = 0;
+            document.getElementById('Deleted').value = 0;
+        } else if (type === 'mega') {
+            document.getElementById('Input').value = 1000;
+            document.getElementById('Output').value = 450;
+            document.getElementById('Enquiry').value = 500;
+            document.getElementById('File').value = 200;
+            document.getElementById('Interface').value = 50;
+            document.getElementById('Added').value = 0;
+            document.getElementById('Changed').value = 0;
+            document.getElementById('Deleted').value = 0;
+        }
+    }
+
+    /* =================================================================
+       PREDICTION
+       ================================================================= */
+    const models = [
+        { key: 'mhlfpa', name: 'M<sub>HLFPA</sub>',     sub: 'Di Martino — SLR', formula: '74.9 × HLFPA<sup>0.58</sup>',    type: 'slr' },
+        { key: 'mifpa',  name: 'M<sub>IFPA</sub>',      sub: 'Di Martino — SLR', formula: '539.99 × IFPA<sup>0.272</sup>',  type: 'slr' },
+        { key: 'mfp',    name: 'M<sub>FP</sub>',        sub: 'Di Martino — SLR', formula: '87.42 × FP<sup>0.56</sup>',      type: 'slr' },
+        { key: 'fdcnn',  name: 'Fuzzy-DCNN',             sub: 'Azzeh et al.',     formula: 'FCM + Deep CNN',                 type: 'dcnn' }
+    ];
+
+    document.getElementById('predict-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const btnText = document.getElementById('btn-text');
+        const btnLoader = document.getElementById('btn-loader');
+        const errorBox = document.getElementById('error-box');
+        const resultsContainer = document.getElementById('results-container');
+        const placeholder = document.getElementById('placeholder');
+
+        btnText.style.display = 'none';
+        btnLoader.style.display = 'block';
+        errorBox.style.display = 'none';
+
+        const payload = {
+            File: document.getElementById('File').value,
+            Interface: document.getElementById('Interface').value,
+            Input: document.getElementById('Input').value,
+            Output: document.getElementById('Output').value,
+            Enquiry: document.getElementById('Enquiry').value,
+            Added: document.getElementById('Added').value,
+            Changed: document.getElementById('Changed').value,
+            Deleted: document.getElementById('Deleted').value
+        };
+
+        try {
+            const res = await fetch('/predict', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                // Dimensional metrics
+                document.getElementById('res-hlfpa').textContent = data.metrics.hlfpa.toLocaleString(undefined, { maximumFractionDigits: 2 });
+                document.getElementById('res-ifpa').textContent  = data.metrics.ifpa.toLocaleString(undefined,  { maximumFractionDigits: 2 });
+                document.getElementById('res-fp').textContent    = data.metrics.fp.toLocaleString(undefined,    { maximumFractionDigits: 2 });
+
+                // Prediction cards
+                const grid = document.getElementById('prediction-grid');
+                grid.innerHTML = '';
+
+                models.forEach(m => {
+                    const pred = data.predictions[m.key];
+                    const card = document.createElement('div');
+                    card.className = `prediction-card ${m.type}`;
+                    card.innerHTML = `
+                        <div class="card-model">${m.name} <span style="font-weight:400; opacity:0.6;">· ${m.sub}</span></div>
+                        <div class="card-formula"><code>${m.formula}</code></div>
+                        <div>
+                            <span class="card-value">${pred.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                            <span class="card-unit">ore</span>
+                        </div>
+                    `;
+                    grid.appendChild(card);
+                });
+
+                // Show
+                placeholder.style.display = 'none';
+                resultsContainer.style.display = 'flex';
+            } else {
+                errorBox.textContent = data.error;
+                errorBox.style.display = 'block';
+            }
+        } catch (err) {
+            errorBox.textContent = 'Errore di connessione al server.';
+            errorBox.style.display = 'block';
+        } finally {
+            btnText.style.display = 'inline';
+            btnLoader.style.display = 'none';
+        }
+    });
+    </script>
+
+</body>
+</html>
