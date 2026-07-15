@@ -12,6 +12,7 @@ class Config:
         self.weight_decay = 1e-3
         self.batch_size = 16
         self.lr = 1e-3
+        self.LOO = False
 
     def __str__(self):
         return str(self.__dict__)
@@ -89,10 +90,14 @@ if __name__ == "__main__":
     full_dataset = Dataset('../Software-estimation-datasets/china.arff', target_column_name='Effort')
     
     # --- INIZIO MODIFICA LOOCV ---
-    #loo = LeaveOneOut()
-    #splits = list(loo.split(full_dataset.data))
-    kf = KFold(n_splits=10, shuffle=True, random_state=42)
-    splits = list(kf.split(full_dataset.data))
+    
+    if args.LOO:
+        loo = LeaveOneOut()
+        splits = list(loo.split(full_dataset.data))
+    else:
+        kf = KFold(n_splits=10, shuffle=True, random_state=42)
+        splits = list(kf.split(full_dataset.data))
+    
     n_splits = len(splits)
 
     for fold_idx, (train_idx, test_idx) in enumerate(splits):
