@@ -34,7 +34,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
-
 KERNEL_SIZE = 3
 KERNELS = 16
 STRIDE = 1
