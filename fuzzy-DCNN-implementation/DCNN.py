@@ -53,22 +53,17 @@ class MAELoss(nn.Module):
         
         return torch.mean(torch.abs(yhat_real - y_real))
 
-class RMSELoss(nn.Module):
-    def __init__(self, target_min, target_range):
+class HuberLoss(nn.Module):
+    def __init__(self, beta=0.05):
         super().__init__()
-        self.t_min = target_min
-        self.t_range = target_range
+        self.loss_fn = nn.SmoothL1Loss(beta=beta)
         
     def forward(self, yhat, y):
-        mse = torch.mean((yhat - y) ** 2)
-        return torch.sqrt(mse)
-    
-LOSS_FN = MAELoss
+        return self.loss_fn(yhat, y)
 
 class MuDataset(Dataset):
     def __init__(self, mu_tensor, targets):
         self.X = torch.tensor(mu_tensor, dtype=torch.float32)
-        # Fix: Convert the pandas Series to a numpy array explicitly
         self.y = torch.tensor(np.asarray(targets), dtype=torch.float32).view(-1, 1)
 
     def __len__(self):
@@ -79,7 +74,6 @@ class MuDataset(Dataset):
         if x.ndim == 2:
             x = x.unsqueeze(0)
         return x, self.y[idx]
-
 
 class DCNNRegressor(nn.Module):
     def __init__(self, n_features, num_clusters, kernels=KERNELS, hidden_layers=HIDDEN_LAYERS, dropout_prob=DROPOUT_PROB):
@@ -92,12 +86,9 @@ class DCNNRegressor(nn.Module):
         self.relu = nn.ReLU()
         self.dropout = nn.Dropout(dropout_prob)
         
-        # Inizializzazione bias
         self.out = nn.Linear(hidden_layers[1], 1)
         self.out.bias.data.fill_(0.0)
-        self.out_activation = nn.ReLU()
 
-        # Calcolo dinamico della dimensione flat
         dummy = torch.zeros(1, 1, n_features, num_clusters)
         with torch.no_grad():
             z = self._forward_features(dummy)
@@ -108,7 +99,7 @@ class DCNNRegressor(nn.Module):
 
     def _forward_features(self, x):
         x = self.relu(self.conv1(x))
-        x = self.pool(x) # Pooling ora con stride 1
+        x = self.pool(x)
         x = self.relu(self.conv2(x))
         x = self.pool(x)
         return x
@@ -120,7 +111,7 @@ class DCNNRegressor(nn.Module):
         x = self.dropout(x)
         x = self.relu(self.fc2(x))
         x = self.out(x)
-        x = self.out_activation(x)
+        x = torch.clamp(x, 0.0, 1.0)
         return x
 
 
@@ -135,7 +126,7 @@ class EffortEstimator:
         self.epochs = epochs
         self.weight_decay = weight_decay
 
-        self.loss_fn = RMSELoss(target_min, target_range)
+        self.loss_fn = HuberLoss(beta=0.05)
         
         self.optim = torch.optim.Adam(self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay)
 
@@ -185,14 +176,20 @@ class EffortEstimator:
     def evaluate(self, mu_test, y_test, inverse_transform=None):
         y_pred = self.predict(mu_test)
         
-        # FIX: Ensure y_test is a numpy array before flattening
         y_true = np.asarray(y_test).flatten()
         
         if inverse_transform is not None:
             y_pred = inverse_transform(y_pred)
             y_true = inverse_transform(y_true)
             
-        mae = np.mean(np.abs(y_pred - y_true))
-        rmse = np.sqrt(np.mean((y_pred - y_true) ** 2))
-        mdae = np.median(np.abs(y_pred - y_true))
-        return mae, rmse, mdae
+        mae = float(np.mean(np.abs(y_pred - y_true)))
+        rmse = float(np.sqrt(np.mean((y_pred - y_true) ** 2)))
+        mdae = float(np.median(np.abs(y_pred - y_true)))
+        
+        eps = 1e-5
+        mre = np.abs(y_pred - y_true) / np.maximum(np.abs(y_true), eps)
+        mmre = float(np.mean(mre))
+        mdmre = float(np.median(mre))
+        pred25 = float(np.mean(mre <= 0.25) * 100.0)
+        
+        return mae, rmse, mdae, mmre, mdmre, pred25
