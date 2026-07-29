@@ -87,8 +87,8 @@ if __name__ == "__main__":
 
 
     print("=" * 60)
-    print(f"\n")
     print(f"TRAINING on COCOMO-81 dataset with the following configuration:")
+    print(f"\n")
     print(f"Max Clusters: {args.max_clusters}")
     print(f"Fixed Clusters: {args.fixed_clusters}")
     print(f"Epochs: {args.epochs}")

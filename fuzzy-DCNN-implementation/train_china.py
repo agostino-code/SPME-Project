@@ -10,13 +10,13 @@ class Config:
     def __init__(self):
         self.max_clusters = 2
         self.fixed_clusters = True
-        self.epochs = 100
+        self.epochs = 150
         self.weight_decay = 1e-3
-        self.batch_size = 32
-        self.lr = 0.001
+        self.batch_size = 16
+        self.lr = 1e-3
         self.kernels = 16
         self.n_folds = 10
-        self.LOO = True
+        self.LOO = False
 
     def __str__(self):
         return str(self.__dict__)

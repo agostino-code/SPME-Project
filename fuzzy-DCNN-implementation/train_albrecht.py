@@ -11,9 +11,9 @@ class Config:
         self.max_clusters = 4
         self.fixed_clusters = True
         self.epochs = 100
-        self.weight_decay = 5e-3
-        self.batch_size = 1
-        self.lr = 5e-3
+        self.weight_decay = 1e-3
+        self.batch_size = 2
+        self.lr = 1e-3
         self.kernels = 8
         self.n_folds = 10
         self.LOO = True

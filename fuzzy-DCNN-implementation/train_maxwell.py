@@ -8,12 +8,12 @@ from elbow import elbow_XB
 
 class Config:
     def __init__(self):
-        self.max_clusters = 3
-        self.fixed_clusters = False
-        self.epochs = 150
+        self.max_clusters = 7
+        self.fixed_clusters = True
+        self.epochs = 100
         self.weight_decay = 1e-3
-        self.batch_size = 4
-        self.lr = 1e-3
+        self.batch_size = 32
+        self.lr = 5e-3
         self.kernels = 8
         self.n_folds = 10
         self.LOO = True
