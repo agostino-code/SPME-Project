@@ -20,17 +20,15 @@ Predict effort.
 """
 
 class FuzzyCMeans:
-    def __init__(self, dataset, num_clusters, m=2, distance_metric='euclidean', error=0.005, maxiter=200):
+    def __init__(self, dataset, num_clusters, m=2, error=0.005, maxiter=200):
         self.dataset = dataset
         self.num_clusters = num_clusters
         self.m = m
-        self.distance_metric = distance_metric
         self.error = error
         self.maxiter = maxiter
-        self.eps = 1e-10  # small value to avoid division by zero
+        self.eps = 1e-10
         self.centroids = None
         self.membership_degrees = None
-        self.inv_cov = None
 
     def fit(self):
         self.__fit_c_means()
@@ -40,17 +38,6 @@ class FuzzyCMeans:
         n_features = self.dataset.training_data.shape[0]
         n_samples = self.dataset.training_data.shape[1]
 
-        # Compute Covariance and Inverse Covariance for Mahalanobis metric
-        if self.distance_metric == 'mahalanobis':
-            cov = np.cov(self.dataset.training_data)
-            if n_features == 1:
-                cov = np.array([[cov]])
-            cov_reg = cov + np.eye(n_features) * 1e-4
-            self.inv_cov = np.linalg.pinv(cov_reg)
-        else:
-            self.inv_cov = np.eye(n_features)
-
-        # expects a matrix of #features x #samples
         self.centroids, self.membership_degrees, _, _, _, _, fpc = fuzz.cluster.cmeans(
             self.dataset.training_data,
             c=self.num_clusters,
@@ -92,17 +79,9 @@ class FuzzyCMeans:
         n_features = self.dataset.training_data.shape[0]
         assert sample.shape[0] == n_features, "Sample feature size does not match fitted data."
 
-        # Vectorized: sample (n_features,) vs centroids (n_clusters, n_features)
-        # weight_diag: (n_features,) diagonal of inv_cov
-        weight_diag = np.diag(self.inv_cov) if self.inv_cov is not None else np.ones(n_features)
-        weight_diag = np.maximum(weight_diag, 1e-4)  # shape: (n_features,)
-
-        # diff: (n_features, n_clusters)
         diff_sq = (sample[:, None] - self.centroids.T) ** 2  # (n_features, n_clusters)
-        weighted_dist_sq = diff_sq * weight_diag[:, None]     # (n_features, n_clusters)
-        # deltas: (n_clusters, n_features) → transposed to (n_features, n_clusters)
         deltas_sq = (self.deltas.T) ** 2  # (n_features, n_clusters)
-        mu = np.exp(-weighted_dist_sq / (2.0 * deltas_sq))
+        mu = np.exp(-diff_sq / (2.0 * deltas_sq))
 
         return mu
 
@@ -118,22 +97,10 @@ class FuzzyCMeans:
         if X.shape[0] != self.dataset.training_data.shape[0]:
             raise ValueError("Input shape must be (n_features, n_samples) or a single sample.")
 
-        n_samples = X.shape[1]
-        n_features = X.shape[0]
-
-        # Fully vectorized batch transform
-        # X: (n_features, n_samples)
-        # centroids: (n_clusters, n_features) → need (n_features, n_clusters)
-        weight_diag = np.diag(self.inv_cov) if self.inv_cov is not None else np.ones(n_features)
-        weight_diag = np.maximum(weight_diag, 1e-4)
-
-        # diff: (n_features, n_samples, n_clusters) via broadcasting
         diff_sq = (X[:, :, None] - self.centroids.T[:, None, :]) ** 2
-        weighted_dist_sq = diff_sq * weight_diag[:, None, None]
         deltas_sq = (self.deltas.T) ** 2  # (n_features, n_clusters)
-        mu_batch = np.exp(-weighted_dist_sq / (2.0 * deltas_sq[:, None, :]))
+        mu_batch = np.exp(-diff_sq / (2.0 * deltas_sq[:, None, :]))
 
-        # Transpose to (n_samples, n_features, n_clusters)
         batch = np.transpose(mu_batch, (1, 0, 2))
 
         return batch
