@@ -5,7 +5,7 @@ import pandas as pd
 import torch
 import sys
 
-sys.path.append(os.path.join(os.path.dirname(__file__), 'fuzzy-DCNN implementation'))
+sys.path.append(os.path.join(os.path.dirname(__file__), 'fuzzy-DCNN-implementation'))
 from DCNN import EffortEstimator
 
 class ModelManager:
@@ -60,12 +60,14 @@ class ModelManager:
                 
         pred_scaled = self.dcnn_model.predict(mu)
         pred = (pred_scaled * self.meta['target_range']) + self.meta['target_min']
+        if self.meta.get('use_log_target', False):
+            pred = np.expm1(pred)
         return float(pred[0])
 
     def predict_dcnn_with_mu(self, input_features):
         """Returns a tuple (prediction_float, mu_matrix_as_list_of_lists).
         
-        The mu matrix is an 8x5 numpy array converted to nested lists,
+        The mu matrix is an NxK numpy array converted to nested lists,
         representing fuzzy membership values for each feature/cluster pair.
         """
         if not self.meta:
@@ -88,6 +90,8 @@ class ModelManager:
 
         pred_scaled = self.dcnn_model.predict(mu)
         pred = (pred_scaled * self.meta['target_range']) + self.meta['target_min']
+        if self.meta.get('use_log_target', False):
+            pred = np.expm1(pred)
         return float(pred[0]), mu.tolist()
 
     @staticmethod

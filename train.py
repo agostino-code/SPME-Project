@@ -7,7 +7,7 @@ import torch
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 
-sys.path.append(os.path.join(os.path.dirname(__file__), 'fuzzy-DCNN implementation'))
+sys.path.append(os.path.join(os.path.dirname(__file__), 'fuzzy-DCNN-implementation'))
 
 from dataset import Dataset
 from fuzzy import FuzzyCMeans
@@ -21,10 +21,10 @@ def train_and_save():
 
     print("Training Fuzzy C-Means...")
     n_clusters = 5
-    fuzzy_cmeans = FuzzyCMeans(dataset, num_clusters=n_clusters)
+    fuzzy_cmeans = FuzzyCMeans(dataset, num_clusters=n_clusters, m=2.0, distance_metric='euclidean')
     mu_train = fuzzy_cmeans.fit_transform()
 
-    print("Training DCNN...")
+    print("Training DCNN Regressor with MRE Loss & Early Stopping...")
     n_features = mu_train.shape[1]
     effort_estimator = EffortEstimator(
         n_features, n_clusters, 
@@ -34,18 +34,20 @@ def train_and_save():
         weight_decay=1e-3,
         target_min=dataset.target_min,
         target_range=dataset.target_range,
+        loss_type='mre',
+        use_log_target=dataset.use_log_target,
         device="cuda" if torch.cuda.is_available() else "cpu"
     )
-    effort_estimator.fit(mu_train, dataset.training_target_scaled, verbose=True)
+    effort_estimator.fit(mu_train, dataset.training_target_scaled, verbose=True, patience=25, val_ratio=0.15)
 
     print("Evaluating DCNN...")
     mu_test = fuzzy_cmeans.transform(dataset.testing_data)
-    dcnn_mae, dcnn_rmse, _ = effort_estimator.evaluate(
+    dcnn_mae, dcnn_rmse, _, dcnn_mmre, _, dcnn_pred25 = effort_estimator.evaluate(
         mu_test,
         dataset.testing_target_scaled,
         inverse_transform=dataset.inverse_transform_target
     )
-    print(f"DCNN Test MAE: {dcnn_mae:.2f}, RMSE: {dcnn_rmse:.2f}")
+    print(f"DCNN Test MAE: {dcnn_mae:.2f}, RMSE: {dcnn_rmse:.2f}, MMRE: {dcnn_mmre:.4f}, Pred(25): {dcnn_pred25:.2f}%")
 
     print("Training Linear Regression...")
     y_train = dataset.inverse_transform_target(dataset.training_target_scaled)
@@ -60,6 +62,11 @@ def train_and_save():
 
     df_train = pd.DataFrame(X_train_unscaled.T, columns=dataset.data.columns)
     df_test = pd.DataFrame(X_test_unscaled.T, columns=dataset.data.columns)
+
+    for df in [df_train, df_test]:
+        for col in ['File', 'Interface', 'Input', 'Output', 'Enquiry']:
+            if col not in df.columns:
+                df[col] = 0.0
 
     df_train['HLFPA'] = 7 * df_train['File'] + 5 * df_train['Interface'] + 4 * df_train['Input'] + 5 * df_train['Output'] + 4 * df_train['Enquiry']
     df_train['IFPA'] = 35 * df_train['File'] + 15 * df_train['Interface']
@@ -78,9 +85,9 @@ def train_and_save():
 
     print("Saving models...")
     os.makedirs("models", exist_ok=True)
-    
+
     torch.save(effort_estimator.model.state_dict(), "models/dcnn.pth")
-    
+
     joblib.dump({
         'n_features': n_features,
         'n_clusters': n_clusters,
@@ -90,17 +97,21 @@ def train_and_save():
         'feature_max': dataset.feature_max,
         'target_min': dataset.target_min,
         'target_range': dataset.target_range,
+        'use_log_target': dataset.use_log_target,
         'lin_reg': lin_reg,
         'columns': dataset.data.columns,
         'metrics': {
             'dcnn_mae': float(dcnn_mae),
             'dcnn_rmse': float(dcnn_rmse),
+            'dcnn_mmre': float(dcnn_mmre),
+            'dcnn_pred25': float(dcnn_pred25),
             'lin_mae': float(lin_mae),
             'lin_rmse': float(lin_rmse)
         }
     }, "models/models-meta.joblib")
-    
+
     print("Training complete and models saved.")
 
 if __name__ == "__main__":
     train_and_save()
+
