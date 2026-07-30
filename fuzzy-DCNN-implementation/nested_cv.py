@@ -13,6 +13,13 @@ def optimize_hyperparameters(dataset_path, target_column, outer_train_indices, n
     """
     Inner loop of Nested CV: Uses Optuna to tune hyperparameters strictly on outer training data.
     """
+    n_samples = len(outer_train_indices)
+    if n_samples < 5:
+        return {'m': 2.0, 'num_clusters': 2, 'lr': 1e-3, 'weight_decay': 1e-4, 'kernels': 16, 'loss_type': 'hybrid', 'alpha': 0.5, 'distance_metric': 'euclidean', 'top_k_features': None, 'use_pca': False, 'augment_rare_targets': False}
+
+    kf_inner = KFold(n_splits=min(n_inner_folds, n_samples), shuffle=True, random_state=42)
+    inner_splits = list(kf_inner.split(outer_train_indices))
+
     def objective(trial):
         m = trial.suggest_float('m', 1.1, 3.0)
         n_clusters = trial.suggest_int('num_clusters', 2, 5)
@@ -26,30 +33,17 @@ def optimize_hyperparameters(dataset_path, target_column, outer_train_indices, n
         use_pca = trial.suggest_categorical('use_pca', [True, False])
         augment_rare_targets = trial.suggest_categorical('augment_rare_targets', [True, False])
 
-        dataset = Dataset(
-            dataset_path,
-            target_column_name=target_column,
-            test_indices=None,
-            top_k_features=top_k_features,
-            apply_skew_transform=True,
-            use_pca=use_pca,
-            augment_rare_targets=augment_rare_targets
-        )
-
-        n_samples = dataset.training_data.shape[1]
-        if n_samples < 5:
-            return float('inf')
-
-        kf_inner = KFold(n_splits=min(n_inner_folds, n_samples), shuffle=True, random_state=42)
         inner_scores = []
 
-        for in_tr_idx, in_val_idx in kf_inner.split(dataset.training_features_df):
-            in_test_indices = list(in_val_idx)
+        for fold_i, (in_tr_idx_idx, in_val_idx_idx) in enumerate(inner_splits):
+            in_tr_idx = outer_train_indices[in_tr_idx_idx]
+            in_val_idx = outer_train_indices[in_val_idx_idx]
 
             sub_dataset = Dataset(
                 dataset_path,
                 target_column_name=target_column,
-                test_indices=in_test_indices,
+                train_indices=in_tr_idx,
+                test_indices=in_val_idx,
                 top_k_features=top_k_features,
                 apply_skew_transform=True,
                 use_pca=use_pca,
@@ -68,12 +62,16 @@ def optimize_hyperparameters(dataset_path, target_column, outer_train_indices, n
                 mu_train = fuzzy_model.fit_transform()
                 mu_val = fuzzy_model.transform(sub_dataset.testing_data)
 
+                # Adaptive epochs: small datasets converge faster
+                n_inner_samples = sub_dataset.training_data.shape[1]
+                inner_epochs = 60 if n_inner_samples < 30 else 100
+
                 estimator = EffortEstimator(
                     n_features=mu_train.shape[1],
                     num_clusters=actual_clusters,
                     lr=lr,
                     batch_size=16,
-                    epochs=100,
+                    epochs=inner_epochs,
                     weight_decay=weight_decay,
                     kernels=kernels,
                     target_min=sub_dataset.target_min,
@@ -103,12 +101,20 @@ def optimize_hyperparameters(dataset_path, target_column, outer_train_indices, n
                 mae_norm = mae / max(1.0, mean_target)
                 score = 0.5 * mae_norm + 0.5 * mmre
                 inner_scores.append(score)
+
+                # Report intermediate value for pruning
+                trial.report(float(np.mean(inner_scores)), fold_i)
+                if trial.should_prune():
+                    raise optuna.TrialPruned()
+            except optuna.TrialPruned:
+                raise
             except Exception:
                 return float('inf')
 
         return float(np.mean(inner_scores)) if inner_scores else float('inf')
 
-    study = optuna.create_study(direction='minimize')
+    pruner = optuna.pruners.MedianPruner(n_startup_trials=3, n_warmup_steps=0)
+    study = optuna.create_study(direction='minimize', pruner=pruner)
     study.optimize(objective, n_trials=n_inner_trials)
     return study.best_params
 
@@ -138,7 +144,7 @@ def run_nested_cv(dataset_path, target_column='Effort', n_outer_folds=5, n_trial
         best_params = optimize_hyperparameters(
             dataset_path=dataset_path,
             target_column=target_column,
-            outer_train_indices=test_idx,
+            outer_train_indices=train_idx,
             n_inner_trials=n_trials
         )
         print(f"Best Hyperparams for Fold {fold_idx + 1}: {best_params}")

@@ -8,38 +8,42 @@ from sklearn.decomposition import PCA
 
 class Dataset:
 
-    last_csv = None
-    last_data = None
+    def __init__(self, arff_path, target_column_name='Effort', test_indices=None, train_indices=None, top_k_features=None, apply_skew_transform=True, max_corr_threshold=0.98, use_pca=False, pca_variance=0.95, augment_rare_targets=False, enable_feature_engineering=True):
+        if str(arff_path).endswith('.csv'):
+            data = pd.read_csv(arff_path)
+        else:
+            from scipy.io import arff
+            raw_data, meta = arff.loadarff(arff_path)
+            data = pd.DataFrame(raw_data)
+            for col in data.select_dtypes([object]).columns:
+                data[col] = data[col].apply(lambda x: x.decode('utf-8') if isinstance(x, bytes) else x)
 
-    def __init__(self, arff_path, target_column_name='Effort', test_indices=None, top_k_features=None, apply_skew_transform=True, max_corr_threshold=0.98, use_pca=False, pca_variance=0.95, augment_rare_targets=False, enable_feature_engineering=True):
-        if arff_path != Dataset.last_csv or Dataset.last_data is None:
-            Dataset.last_csv = arff_path
-            if arff_path.endswith('.csv'):
-                Dataset.last_data = pd.read_csv(arff_path)
-            else:
-                from scipy.io import arff
-                data, meta = arff.loadarff(arff_path)
-                Dataset.last_data = pd.DataFrame(data)
-                for col in Dataset.last_data.select_dtypes([object]).columns:
-                    Dataset.last_data[col] = Dataset.last_data[col].apply(lambda x: x.decode('utf-8') if isinstance(x, bytes) else x)
 
-        data = Dataset.last_data.copy()
 
-        # Critical: Drop explicit ID / Leakage columns (e.g. China dataset PDR variables)
-        drop_columns = [
-            'ID', 'Duration', 'N_effort', 'Resource', 'num', 'dev_mode',
-            'PDR_AFP', 'PDR_UFP', 'NPDR_AFP', 'NPDU_UFP'
-        ]
-        cols_to_drop = [c for c in drop_columns if c in data.columns]
-        if cols_to_drop:
-            data = data.drop(columns=cols_to_drop)
+        # Dataset-specific cleaning
+        ds_name = str(arff_path).lower()
+        if 'china' in ds_name:
+            drop_cols = ['ID', 'Duration', 'N_effort', 'Resource', 'PDR_AFP', 'PDR_UFP', 'NPDR_AFP', 'NPDU_UFP']
+            data = data.drop(columns=[c for c in drop_cols if c in data.columns])
+        elif 'desharnais' in ds_name:
+            data = data.replace({-1: np.nan, "-1": np.nan, -1.0: np.nan})
+            if 'Language' in data.columns:
+                data['Language'] = data['Language'].astype(str)
+            drop_cols = ['id', 'Project']
+            data = data.drop(columns=[c for c in drop_cols if c in data.columns])
+        elif 'cocomo' in ds_name:
+            if 'num' in data.columns:
+                data = data.drop(columns=['num'])
 
         # Separate features and target
         target = data[target_column_name].astype(float)
         features = data.drop(columns=[target_column_name])
 
         # Initial Train/Test Split BEFORE any statistical fitting (Prevents Data Leakage)
-        if test_indices is None:
+        if train_indices is not None and test_indices is not None:
+            train_idx = features.index[train_indices]
+            test_idx = features.index[test_indices]
+        elif test_indices is None:
             train_idx = features.sample(frac=0.7, random_state=42).index
             test_idx = features.index.difference(train_idx)
         else:
@@ -72,7 +76,7 @@ class Dataset:
                 for _ in range(min(12, len(high_idx) * 2)):
                     i1, i2 = np.random.choice(high_idx, size=2, replace=False)
                     lam = np.random.uniform(0.25, 0.75)
-                    f_synth = training_features.iloc[i1].astype(float).copy()
+                    f_synth = training_features.iloc[i1].copy()
                     for c in num_cols_list:
                         v1 = float(training_features.iloc[i1][c])
                         v2 = float(training_features.iloc[i2][c])
@@ -97,12 +101,17 @@ class Dataset:
             for i in range(len(num_cols_subset)):
                 for j in range(i + 1, len(num_cols_subset)):
                     c1, c2 = num_cols_subset[i], num_cols_subset[j]
-                    training_features[f"{c1}_div_{c2}"] = training_features[c1] / (training_features[c2] + 1.0)
-                    testing_features[f"{c1}_div_{c2}"] = testing_features[c1] / (testing_features[c2] + 1.0)
-                    training_features[f"{c1}_mult_{c2}"] = training_features[c1] * training_features[c2]
-                    testing_features[f"{c1}_mult_{c2}"] = testing_features[c1] * testing_features[c2]
+                    denom_tr = np.abs(training_features[c1].values) + np.abs(training_features[c2].values) + 1.0
+                    denom_te = np.abs(testing_features[c1].values) + np.abs(testing_features[c2].values) + 1.0
+                    training_features[f"{c1}_div_{c2}"] = training_features[c1].values / denom_tr
+                    testing_features[f"{c1}_div_{c2}"] = testing_features[c1].values / denom_te
+                    training_features[f"{c1}_mult_{c2}"] = training_features[c1].values * training_features[c2].values
+                    testing_features[f"{c1}_mult_{c2}"] = testing_features[c1].values * testing_features[c2].values
 
             num_cols = list(training_features.select_dtypes(include=['number']).columns)
+            training_features[num_cols] = training_features[num_cols].replace([np.inf, -np.inf], np.nan)
+            testing_features[num_cols] = testing_features[num_cols].replace([np.inf, -np.inf], np.nan)
+
 
         # Imputation on Numerical Features (KNNImputer fitted on Train only)
         if num_cols:
@@ -116,6 +125,8 @@ class Dataset:
 
         # Encoding Categorical Features (OneHotEncoder fitted on Train only)
         if cat_cols:
+            training_features[cat_cols] = training_features[cat_cols].astype(str)
+            testing_features[cat_cols] = testing_features[cat_cols].astype(str)
             ohe = OneHotEncoder(sparse_output=False, handle_unknown='ignore')
             train_cat_enc = ohe.fit_transform(training_features[cat_cols])
             test_cat_enc = ohe.transform(testing_features[cat_cols])
@@ -135,8 +146,8 @@ class Dataset:
             for col in num_cols:
                 if col in training_features.columns:
                     if training_features[col].min() >= 0 and skew(training_features[col].dropna()) > 1.0:
-                        training_features[col] = np.log1p(training_features[col])
-                        testing_features[col] = np.log1p(testing_features[col])
+                        training_features[col] = np.log1p(np.maximum(0.0, training_features[col]))
+                        testing_features[col] = np.log1p(np.maximum(0.0, testing_features[col]))
 
         # Multicollinearity / Redundancy Filter (Correlation Threshold fitted on Train)
         if max_corr_threshold is not None and training_features.shape[1] > 1:
@@ -147,6 +158,10 @@ class Dataset:
                 training_features = training_features.drop(columns=to_drop)
                 testing_features = testing_features.drop(columns=to_drop)
 
+        # Ensure no NaNs remain before PCA or Feature Selection
+        training_features = training_features.fillna(training_features.mean()).fillna(0.0)
+        testing_features = testing_features.fillna(training_features.mean()).fillna(0.0)
+
         # Dimensionality Reduction via PCA (Pre-Clustering Orthogonal Topology)
         if use_pca and training_features.shape[1] > 3:
             n_comp = min(pca_variance if isinstance(pca_variance, float) else int(pca_variance), training_features.shape[1] - 1)
@@ -156,6 +171,7 @@ class Dataset:
             pca_cols = [f"PC_{i+1}" for i in range(tr_pca.shape[1])]
             training_features = pd.DataFrame(tr_pca, columns=pca_cols)
             testing_features = pd.DataFrame(te_pca, columns=pca_cols)
+
 
         # Dynamic Feature Selection via Mutual Information
         if top_k_features is not None and top_k_features < training_features.shape[1]:

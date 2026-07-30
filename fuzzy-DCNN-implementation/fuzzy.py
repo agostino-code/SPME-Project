@@ -20,7 +20,7 @@ Predict effort.
 """
 
 class FuzzyCMeans:
-    def __init__(self, dataset, num_clusters, m=2, distance_metric='euclidean', error=0.005, maxiter=1000):
+    def __init__(self, dataset, num_clusters, m=2, distance_metric='euclidean', error=0.005, maxiter=200):
         self.dataset = dataset
         self.num_clusters = num_clusters
         self.m = m
@@ -90,17 +90,19 @@ class FuzzyCMeans:
             raise ValueError("Model not fitted. Call fit() first.")
 
         n_features = self.dataset.training_data.shape[0]
-        mu = np.zeros((n_features, self.num_clusters))
-
         assert sample.shape[0] == n_features, "Sample feature size does not match fitted data."
 
-        for j in range(n_features):
-            weight_j = self.inv_cov[j, j] if self.inv_cov is not None else 1.0
-            for r in range(self.num_clusters):
-                c_rj = self.centroids[r, j]
-                d_rj = self.deltas[r, j]
-                dist_sq = ((sample[j] - c_rj) ** 2) * max(weight_j, 1e-4)
-                mu[j, r] = np.exp(- dist_sq / (2.0 * d_rj**2))
+        # Vectorized: sample (n_features,) vs centroids (n_clusters, n_features)
+        # weight_diag: (n_features,) diagonal of inv_cov
+        weight_diag = np.diag(self.inv_cov) if self.inv_cov is not None else np.ones(n_features)
+        weight_diag = np.maximum(weight_diag, 1e-4)  # shape: (n_features,)
+
+        # diff: (n_features, n_clusters)
+        diff_sq = (sample[:, None] - self.centroids.T) ** 2  # (n_features, n_clusters)
+        weighted_dist_sq = diff_sq * weight_diag[:, None]     # (n_features, n_clusters)
+        # deltas: (n_clusters, n_features) → transposed to (n_features, n_clusters)
+        deltas_sq = (self.deltas.T) ** 2  # (n_features, n_clusters)
+        mu = np.exp(-weighted_dist_sq / (2.0 * deltas_sq))
 
         return mu
 
@@ -118,10 +120,21 @@ class FuzzyCMeans:
 
         n_samples = X.shape[1]
         n_features = X.shape[0]
-        batch = np.zeros((n_samples, n_features, self.num_clusters), dtype=float)
 
-        for i in range(n_samples):
-            batch[i] = self.transform_one(X[:, i])
+        # Fully vectorized batch transform
+        # X: (n_features, n_samples)
+        # centroids: (n_clusters, n_features) → need (n_features, n_clusters)
+        weight_diag = np.diag(self.inv_cov) if self.inv_cov is not None else np.ones(n_features)
+        weight_diag = np.maximum(weight_diag, 1e-4)
+
+        # diff: (n_features, n_samples, n_clusters) via broadcasting
+        diff_sq = (X[:, :, None] - self.centroids.T[:, None, :]) ** 2
+        weighted_dist_sq = diff_sq * weight_diag[:, None, None]
+        deltas_sq = (self.deltas.T) ** 2  # (n_features, n_clusters)
+        mu_batch = np.exp(-weighted_dist_sq / (2.0 * deltas_sq[:, None, :]))
+
+        # Transpose to (n_samples, n_features, n_clusters)
+        batch = np.transpose(mu_batch, (1, 0, 2))
 
         return batch
 

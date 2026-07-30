@@ -77,6 +77,9 @@ class HuberLoss(nn.Module):
             y_real = torch.expm1(y_unscaled)
         else:
             yhat_real = yhat_unscaled
+            y_real = y_unscaled
+        return self.loss_fn(yhat_real, y_real)
+
 class HybridLoss(nn.Module):
     def __init__(self, target_min=0.0, target_range=1.0, use_log_target=False, alpha=0.5, eps=1e-5):
         super().__init__()
@@ -121,6 +124,8 @@ class MRELoss(nn.Module):
             y_real = y_unscaled
 
         mre = torch.abs(yhat_real - y_real) / torch.clamp(torch.abs(y_real), min=self.eps)
+        return torch.mean(mre)
+
 class MuDataset(Dataset):
     def __init__(self, mu_tensor, targets):
         self.X = torch.tensor(mu_tensor, dtype=torch.float32)
@@ -245,7 +250,7 @@ class EffortEstimator:
             torch.manual_seed(self.seed + model_idx * 100)
             np.random.seed(self.seed + model_idx * 100)
 
-            if val_ratio > 0 and n_samples > 10:
+            if val_ratio > 0 and n_samples > 5:
                 val_size = max(1, int(n_samples * val_ratio))
                 perm = np.random.permutation(n_samples)
                 val_idx, train_idx = perm[:val_size], perm[val_size:]
@@ -303,7 +308,7 @@ class EffortEstimator:
 
                     if avg_val_loss < best_val_loss - 1e-4:
                         best_val_loss = avg_val_loss
-                        best_model_weights = copy.deepcopy(model.state_dict())
+                        best_model_weights = {k: v.clone() for k, v in model.state_dict().items()}
                         patience_counter = 0
                     else:
                         patience_counter += 1
@@ -327,9 +332,13 @@ class EffortEstimator:
 
             p_dcnn = np.mean(np.array(dcnn_preds), axis=0)
 
+            # Adaptive n_estimators: scale with dataset size to avoid overfitting on tiny sets
+            n_est = min(100, max(20, n_samples // 2))
+            n_meta = min(50, max(15, n_samples // 4))
+
             if X_train_raw is not None and len(X_train_raw) == n_samples:
                 X_tr = np.nan_to_num(np.asarray(X_train_raw, dtype=np.float32))
-                self.xgb_model = GradientBoostingRegressor(n_estimators=100, learning_rate=0.05, max_depth=4, random_state=self.seed)
+                self.xgb_model = GradientBoostingRegressor(n_estimators=n_est, learning_rate=0.05, max_depth=4, random_state=self.seed)
                 self.xgb_model.fit(X_tr, y_train_arr)
                 p_xgb = self.xgb_model.predict(X_tr)
 
@@ -337,7 +346,7 @@ class EffortEstimator:
                 self.svr_model.fit(X_tr, y_train_arr)
                 p_svr = self.svr_model.predict(X_tr)
 
-                self.rf_model = RandomForestRegressor(n_estimators=100, random_state=self.seed)
+                self.rf_model = RandomForestRegressor(n_estimators=n_est, random_state=self.seed)
                 self.rf_model.fit(X_tr, y_train_arr)
                 p_rf = self.rf_model.predict(X_tr)
 
@@ -346,7 +355,7 @@ class EffortEstimator:
                 P_train = np.column_stack(dcnn_preds)
 
             if len(P_train) >= 10:
-                self.meta_learner = GradientBoostingRegressor(loss='absolute_error', n_estimators=50, max_depth=3, random_state=self.seed)
+                self.meta_learner = GradientBoostingRegressor(loss='absolute_error', n_estimators=n_meta, max_depth=3, random_state=self.seed)
                 self.meta_learner.fit(P_train, y_train_arr)
             else:
                 self.meta_learner = None
