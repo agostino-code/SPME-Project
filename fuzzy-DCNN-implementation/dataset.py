@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 
 class Dataset:
-    def __init__(self, arff_path, target_column_name='Effort', test_indices=None, train_indices=None):
+    def __init__(self, arff_path, target_column_name='Effort', test_indices=None, train_indices=None, use_knn_imputation=False):
         if str(arff_path).endswith('.csv'):
             data = pd.read_csv(arff_path)
         else:
@@ -16,30 +16,43 @@ class Dataset:
         
         # Keep only numeric features according to paper
         if 'albrecht' in ds_name:
-            # Drop none, all are numeric in Albrecht except none
             pass
         elif 'china' in ds_name:
-            # China categorical/nominal/drop cols
             drop_cols = ['ID', 'Duration', 'N_effort', 'Resource', 'Dev.Type']
-            data = data.drop(columns=[c for c in drop_cols if c in data.columns])
+            actual_drops = [c for c in drop_cols if c in data.columns]
+            if len(actual_drops) > 0: print(f"Dropped from China: {actual_drops}", flush=True)
+            data = data.drop(columns=actual_drops)
         elif 'desharnais' in ds_name:
             data = data.replace({-1: np.nan, "-1": np.nan, -1.0: np.nan})
             drop_cols = ['id', 'Project', 'YearEnd', 'Language', 'AdjFactor']
-            data = data.drop(columns=[c for c in drop_cols if c in data.columns])
+            actual_drops = [c for c in drop_cols if c in data.columns]
+            if len(actual_drops) > 0: print(f"Dropped from Desharnais: {actual_drops}", flush=True)
+            data = data.drop(columns=actual_drops)
         elif 'cocomo' in ds_name:
             if 'num' in data.columns:
+                print(f"Dropped from COCOMO: ['num']", flush=True)
                 data = data.drop(columns=['num'])
             drop_cols = ['Type', 'DEV']
-            data = data.drop(columns=[c for c in drop_cols if c in data.columns])
+            actual_drops = [c for c in drop_cols if c in data.columns]
+            if len(actual_drops) > 0: print(f"Dropped from COCOMO: {actual_drops}", flush=True)
+            data = data.drop(columns=actual_drops)
         elif 'maxwell' in ds_name:
             drop_cols = ['App', 'Har', 'Dba', 'Ifc', 'Source', 'Telonuse']
-            data = data.drop(columns=[c for c in drop_cols if c in data.columns])
+            actual_drops = [c for c in drop_cols if c in data.columns]
+            if len(actual_drops) > 0: print(f"Dropped from Maxwell: {actual_drops}", flush=True)
+            data = data.drop(columns=actual_drops)
 
         # Drop non-numeric completely just in case
         data = data.select_dtypes(include=['number'])
 
-        # Drop rows with missing values
-        data = data.dropna().reset_index(drop=True)
+        if use_knn_imputation:
+            from sklearn.impute import KNNImputer
+            imputer = KNNImputer(n_neighbors=min(5, len(data) - 1))
+            cols = data.columns
+            data = pd.DataFrame(imputer.fit_transform(data), columns=cols)
+        else:
+            # Drop rows with missing values
+            data = data.dropna().reset_index(drop=True)
 
         target = data[target_column_name].astype(float)
         features = data.drop(columns=[target_column_name])
