@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 
 class Dataset:
-    def __init__(self, arff_path, target_column_name='Effort', test_indices=None, train_indices=None, use_knn_imputation=False):
+    def __init__(self, arff_path, target_column_name='Effort', test_indices=None, train_indices=None, use_knn_imputation=False, verbose=False):
         if str(arff_path).endswith('.csv'):
             data = pd.read_csv(arff_path)
         else:
@@ -20,29 +20,33 @@ class Dataset:
         elif 'china' in ds_name:
             drop_cols = ['ID', 'Duration', 'N_effort', 'Resource', 'Dev.Type']
             actual_drops = [c for c in drop_cols if c in data.columns]
-            if len(actual_drops) > 0: print(f"Dropped from China: {actual_drops}", flush=True)
+            if verbose and len(actual_drops) > 0: print(f"Dropped from China: {actual_drops}", flush=True)
             data = data.drop(columns=actual_drops)
         elif 'desharnais' in ds_name:
             data = data.replace({-1: np.nan, "-1": np.nan, -1.0: np.nan})
             drop_cols = ['id', 'Project', 'YearEnd', 'Language', 'AdjFactor']
             actual_drops = [c for c in drop_cols if c in data.columns]
-            if len(actual_drops) > 0: print(f"Dropped from Desharnais: {actual_drops}", flush=True)
+            if verbose and len(actual_drops) > 0: print(f"Dropped from Desharnais: {actual_drops}", flush=True)
             data = data.drop(columns=actual_drops)
         elif 'cocomo' in ds_name:
             if 'num' in data.columns:
-                print(f"Dropped from COCOMO: ['num']", flush=True)
+                if verbose: print(f"Dropped from COCOMO: ['num']", flush=True)
                 data = data.drop(columns=['num'])
             drop_cols = ['Type', 'DEV']
             actual_drops = [c for c in drop_cols if c in data.columns]
-            if len(actual_drops) > 0: print(f"Dropped from COCOMO: {actual_drops}", flush=True)
+            if verbose and len(actual_drops) > 0: print(f"Dropped from COCOMO: {actual_drops}", flush=True)
             data = data.drop(columns=actual_drops)
         elif 'maxwell' in ds_name:
             drop_cols = ['App', 'Har', 'Dba', 'Ifc', 'Source', 'Telonuse']
             actual_drops = [c for c in drop_cols if c in data.columns]
-            if len(actual_drops) > 0: print(f"Dropped from Maxwell: {actual_drops}", flush=True)
+            if verbose and len(actual_drops) > 0: print(f"Dropped from Maxwell: {actual_drops}", flush=True)
             data = data.drop(columns=actual_drops)
 
-        # Drop non-numeric completely just in case
+        # Label encode non-numeric before selecting numeric
+        for col in data.select_dtypes(['object', 'category', 'string']).columns:
+            data[col] = data[col].astype('category').cat.codes
+        
+        # Drop non-numeric completely just in case (should be empty now)
         data = data.select_dtypes(include=['number'])
 
         if use_knn_imputation:

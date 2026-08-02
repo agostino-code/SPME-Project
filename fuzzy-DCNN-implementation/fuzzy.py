@@ -67,7 +67,7 @@ class FuzzyCMeans:
 
                 vals = (-(x_ij - c_rj) ** 2) / (2.0 * log_u)
                 vals = np.maximum(vals, 0.0)
-                delta_rj = np.mean(np.sqrt(vals))
+                delta_rj = np.sqrt(np.mean(vals))
                 self.deltas[r, j] = max(delta_rj, self.eps)
 
         return self.deltas

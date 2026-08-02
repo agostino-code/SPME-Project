@@ -22,12 +22,7 @@ class FDCNN(nn.Module):
         self.conv1 = nn.Conv2d(in_channels=1, out_channels=num_filters, kernel_size=3, stride=1, padding=1)
         self.relu1 = nn.ReLU()
         
-        # PROMPT 2: Pointwise Convolution (1x1) for channel fusion
-        self.pointwise = nn.Conv2d(in_channels=num_filters, out_channels=num_filters * 2, kernel_size=1, stride=1, padding=0)
-        self.bn_pw = nn.BatchNorm2d(num_filters * 2)
-        self.relu_pw = nn.ReLU()
-        
-        self.conv2 = nn.Conv2d(in_channels=num_filters * 2, out_channels=num_filters, kernel_size=3, stride=1, padding=1)
+        self.conv2 = nn.Conv2d(in_channels=num_filters, out_channels=num_filters, kernel_size=3, stride=1, padding=1)
         self.relu2 = nn.ReLU()
         
         self.flatten = nn.Flatten()
@@ -38,9 +33,7 @@ class FDCNN(nn.Module):
             dummy_input = torch.zeros(1, 1, m_features, k_clusters)
             x = self.conv1(dummy_input)
             x = self.relu1(x)
-            x = self.pointwise(x)
-            x = self.bn_pw(x)
-            x = self.relu_pw(x)
+
             x = self.safe_pool(x)
             x = self.conv2(x)
             x = self.relu2(x)
@@ -53,9 +46,8 @@ class FDCNN(nn.Module):
         self.fc2 = nn.Linear(32, 16)
         self.relu4 = nn.ReLU()
         self.out = nn.Linear(16, 1)
-        self.relu_out = nn.ReLU()
         
-        for m in [self.conv1, self.pointwise, self.conv2, self.fc1, self.fc2]:
+        for m in [self.conv1, self.conv2, self.fc1, self.fc2]:
             init_weights(m)
                 
         nn.init.normal_(self.out.weight, mean=0.0, std=0.01)
@@ -65,9 +57,7 @@ class FDCNN(nn.Module):
         x = self.conv1(x)
         x = self.relu1(x)
         
-        x = self.pointwise(x)
-        x = self.bn_pw(x)
-        x = self.relu_pw(x)
+
         
         x = self.safe_pool(x)
         
@@ -82,7 +72,6 @@ class FDCNN(nn.Module):
         x = self.fc2(x)
         x = self.relu4(x)
         x = self.out(x)
-        x = self.relu_out(x)
         return x
 
 class FDCNN_SeqAsym(nn.Module):
@@ -121,7 +110,6 @@ class FDCNN_SeqAsym(nn.Module):
         self.fc2 = nn.Linear(32, 16)
         self.relu4 = nn.ReLU()
         self.out = nn.Linear(16, 1)
-        self.relu_out = nn.ReLU()
         
         for m in [self.conv1, self.conv2, self.fc1, self.fc2]:
             init_weights(m)
@@ -143,7 +131,6 @@ class FDCNN_SeqAsym(nn.Module):
         x = self.fc2(x)
         x = self.relu4(x)
         x = self.out(x)
-        x = self.relu_out(x)
         return x
 
 
@@ -180,7 +167,6 @@ class FDCNN_ParAsym(nn.Module):
         self.fc2 = nn.Linear(32, 16)
         self.relu4 = nn.ReLU()
         self.out = nn.Linear(16, 1)
-        self.relu_out = nn.ReLU()
         
         for m in [self.conv1_A, self.conv1_B, self.fc1, self.fc2]:
             init_weights(m)
@@ -206,13 +192,13 @@ class FDCNN_ParAsym(nn.Module):
         x = self.fc2(x)
         x = self.relu4(x)
         x = self.out(x)
-        x = self.relu_out(x)
         return x
 
 class EffortEstimator:
     def __init__(self, m_features, k_clusters, lr=0.001, epochs=150, batch_size=16, 
                  target_min=0.0, target_range=1.0, target_mean=0.0, device='cpu', 
-                 model_type='FDCNN', num_filters=16, dropout_rate=0.2):
+                 model_type='FDCNN', num_filters=16, dropout_rate=0.2,
+                 loss_type='rmse', huber_delta=0.1):
         self.m_features = m_features
         self.k_clusters = k_clusters
         self.lr = lr
@@ -231,7 +217,23 @@ class EffortEstimator:
                                  num_filters=num_filters, dropout_rate=dropout_rate).to(self.device)
         
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.lr)
-        self.criterion = nn.MSELoss()
+        class RMSELoss(nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.mse = nn.MSELoss()
+            def forward(self,yhat,y):
+                return torch.sqrt(self.mse(yhat,y) + 1e-6)
+
+        if loss_type == 'huber':
+            # Huber (Smooth-L1): quadratica per errori piccoli, lineare (non esplode)
+            # per errori grandi. delta è nella scala del target scalato [0, 1], quindi
+            # valori tipici da esplorare sono piccoli (es. 0.05 - 0.5).
+            self.criterion = nn.HuberLoss(delta=huber_delta)
+        else:
+            self.criterion = RMSELoss()
+
+        self.loss_type = loss_type
+        self.huber_delta = huber_delta
         self.target_min = target_min
         self.target_range = target_range
         
@@ -256,4 +258,8 @@ class EffortEstimator:
         X_tensor = torch.tensor(X_test, dtype=torch.float32).unsqueeze(1).to(self.device)
         with torch.no_grad():
             preds = self.model(X_tensor).squeeze(1).cpu().numpy()
+        # Effort non può essere negativo: il clipping avviene solo qui, in inferenza,
+        # non nel forward pass di training (dove terrebbe il gradiente sempre lineare
+        # e libero di fluire, evitando sia il collasso della ReLU sia il bias della Softplus).
+        preds = np.maximum(preds, 0.0)
         return preds

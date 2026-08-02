@@ -1,183 +1,233 @@
+"""
+LOOCV evaluation pipeline for the Fuzzy-DCNN effort estimation model.
+
+Pipeline per dataset:
+    1. Carica e pre-processa il dataset (dataset.py).
+    2. Per ogni fold (LOOCV, o 10-fold per China):
+        a. Fuzzifica i dati di training con FCM (elbow.py sceglie k via indice Xie-Beni).
+        b. Allena un DCNN sulle membership fuzzy (DCNN.py).
+        c. Predice sul fold di test e riporta la scala originale del target.
+    3. Aggrega le predizioni di tutti i fold e calcola MAE / MedAE / SA / Delta.
+
+NOTA IMPORTANTE (Windows + joblib):
+La logica di un singolo fold vive in fold_worker.py, NON in questo file, perché
+questo script viene eseguito come __main__. Su Windows, joblib (backend 'loky') usa
+processi 'spawn': se la funzione worker fosse definita qui, cloudpickle dovrebbe
+serializzarla per valore insieme allo stato del modulo (incluso, se toccato, il
+contesto CUDA/cuDNN, che contiene oggetti nativi non serializzabili). Importandola
+da un modulo separato, i worker la referenziano per import invece che per valore.
+"""
+
 import os
 import sys
+import time
 import numpy as np
 import pandas as pd
-from sklearn.model_selection import LeaveOneOut
-from scipy.stats import wilcoxon
-import multiprocessing
-from functools import partial
+import torch
+from sklearn.model_selection import LeaveOneOut, KFold
+from joblib import Parallel, delayed
 
 from dataset import Dataset
-from elbow import elbow_XB
-from DCNN import EffortEstimator
+from fold_worker import is_china_dataset, target_column_for, process_single_fold
 
 sys.stdout.reconfigure(line_buffering=True)
 
+# --------------------------------------------------------------------------- #
+# Configuration
+# --------------------------------------------------------------------------- #
+
+RANDOM_SEED = 42
+N_RANDOM_BASELINE_RUNS = 1000   # numero di permutazioni casuali usate per stimare SA / Delta
+MAX_FUZZY_CLUSTERS = 10         # limite superiore per la ricerca del k ottimale (indice Xie-Beni)
+
+DCNN_LEARNING_RATE = 0.001
+DCNN_EPOCHS = 400
+DCNN_BATCH_SIZE = 16
+
+# Loss function: 'rmse' (default originale, sensibile agli outlier) o 'huber'
+# (quadratica per errori piccoli, lineare per errori grandi -> meno dominata dagli
+# outlier).
+#
+# huber_delta è calcolato dinamicamente PER FOLD in fold_worker.py, come:
+#     delta_normalizzato = (mediana_target_training * DCNN_HUBER_DELTA_MEDIAN_MULTIPLIER)
+#                           / target_range_del_fold
+# usando SOLO il training set del fold corrente (nessun leakage dal test), così la
+# soglia si adatta alla scala/skewness di ciascun dataset invece di essere un valore
+# fisso arbitrario. Lo sweep manuale su COCOMO ha mostrato una curva a campana attorno
+# a multiplier=1.0 (cioè delta ≈ 1x la mediana): sia troppo largo che troppo piccolo
+# peggiorano il risultato rispetto a questo punto.
+DCNN_LOSS_TYPE = 'huber'
+DCNN_HUBER_DELTA_MEDIAN_MULTIPLIER = 1.0
+
+CHINA_KFOLD_SPLITS = 10         # China usa 10-fold invece di LOOCV (dataset troppo grande per LOOCV)
+
+DATASETS_TO_EVALUATE = [
+    '../Software-estimation-datasets/albrecht.arff',
+    '../Software-estimation-datasets/COCOMO-81.csv',
+    '../Software-estimation-datasets/Desharnais.csv',
+    '../Software-estimation-datasets/maxwell.arff',
+    '../Software-estimation-datasets/china.arff',
+]
+
+
+# --------------------------------------------------------------------------- #
+# Metrics
+# --------------------------------------------------------------------------- #
+
 def compute_metrics(actual, predicted):
+    """
+    Calcola MAE, MedAE, Standardized Accuracy (SA) ed effect size (Delta), confrontando
+    l'errore del modello con quello di N_RANDOM_BASELINE_RUNS predittori casuali
+    (permutazioni delle predizioni), come descritto nel paper (Eq. 8-10).
+
+    MedAE (mediana degli errori assoluti) viene riportata perché, su dataset piccoli
+    e fortemente skewed come COCOMO-81, pochi fold con outlier estremi dominano il MAE
+    aggregato mentre la MedAE riflette l'errore "tipico" su un progetto medio — utile
+    per capire se il modello generalizza bene sulla maggioranza dei casi anche quando
+    il MAE resta alto a causa di 2-3 fold catastrofici.
+    """
     actual = np.array(actual)
     predicted = np.array(predicted)
-    mae = np.mean(np.abs(actual - predicted))
-    
-    n_runs = 1000
-    random_maes = np.zeros(n_runs)
-    for i in range(n_runs):
+    abs_errors = np.abs(actual - predicted)
+    mae = np.mean(abs_errors)
+    medae = np.median(abs_errors)
+
+    random_maes = np.zeros(N_RANDOM_BASELINE_RUNS)
+    for i in range(N_RANDOM_BASELINE_RUNS):
         np.random.seed(i)
         pred_random = np.random.permutation(actual)
         random_maes[i] = np.mean(np.abs(actual - pred_random))
-        
+
     mae_random = np.mean(random_maes)
     sd_random = np.std(random_maes)
-    
+
     sa = 1.0 - (mae / mae_random) if mae_random != 0 else 0.0
     delta = (mae_random - mae) / sd_random if sd_random != 0 else 0.0
-    
-    return mae, sa, delta
 
-from joblib import Parallel, delayed
+    return mae, medae, sa, delta
 
-def run_loocv(dataset_path, use_knn_imputation=False):
-    print(f"\n--- Running LOOCV for {os.path.basename(dataset_path)} (KNN={use_knn_imputation}) ---", flush=True)
-    
-    target_col = 'Effort' if 'cocomo' not in dataset_path.lower() else 'actual'
-    ds_full = Dataset(dataset_path, target_column_name=target_col, use_knn_imputation=use_knn_imputation)
-    n_samples = len(ds_full.data)
-    
-    is_china = 'china' in dataset_path.lower()
-    if is_china:
-        from sklearn.model_selection import KFold
-        cv = KFold(n_splits=10, shuffle=True, random_state=42)
+
+# --------------------------------------------------------------------------- #
+# Full LOOCV/K-fold run for one dataset
+# --------------------------------------------------------------------------- #
+
+def run_loocv(dataset_path: str, use_knn_imputation: bool = False):
+    """
+    Esegue la validazione completa (LOOCV, o 10-fold per China) su un dataset,
+    salva i risultati per-fold in CSV e restituisce (MAE, MedAE, SA, Delta) aggregati.
+    """
+    print(f"\n--- Running LOOCV for {os.path.basename(dataset_path)} "
+          f"(KNN={use_knn_imputation}) ---", flush=True)
+
+    target_col = target_column_for(dataset_path)
+    ds_full = Dataset(dataset_path, target_column_name=target_col,
+                       use_knn_imputation=use_knn_imputation, verbose=True)
+
+    if is_china_dataset(dataset_path):
+        cv = KFold(n_splits=CHINA_KFOLD_SPLITS, shuffle=True, random_state=RANDOM_SEED)
         print("NOTE: Using 10-fold CV (not LOOCV) for China as a preliminary check.", flush=True)
     else:
         cv = LeaveOneOut()
-        
-    def process_single_fold(train_idx, test_idx):
-        import torch
-        import random
-        torch.set_num_threads(1)
-        np.random.seed(42)
-        torch.manual_seed(42)
-        random.seed(42)
-        
-        # Determine device
-        is_china = 'china' in dataset_path.lower()
-        if is_china and torch.cuda.is_available():
-            device = 'cuda'
-            torch.cuda.manual_seed_all(42)
-            torch.backends.cudnn.deterministic = True
-            torch.backends.cudnn.benchmark = False
-        else:
-            device = 'cpu'
-        
-        dataset = Dataset(dataset_path, target_column_name=target_col, train_indices=train_idx, test_indices=test_idx, use_knn_imputation=use_knn_imputation)
-        fuzzy_model, optimal_k, mu_train = elbow_XB(dataset, max_clusters=10)
-        mu_test = fuzzy_model.transform(dataset.testing_data)
-        
-        t_mean = dataset.training_target_unscaled.mean()
-        estimator = EffortEstimator(
-            m_features=dataset.training_data.shape[0],
-            k_clusters=optimal_k,
-            lr=0.001,
-            epochs=400,
-            batch_size=16,
-            target_min=0.0,
-            target_range=1.0,
-            target_mean=t_mean,
-            device=device
-        )
-        
-        estimator.fit(mu_train, dataset.training_target_unscaled.values)
-        pred_unscaled = estimator.predict(mu_test)
-        
-        actuals_fold = dataset.testing_target_unscaled.values
-        predictions_fold = pred_unscaled
-        return actuals_fold, predictions_fold
 
-    # Use joblib for parallel execution
-    is_china = 'china' in dataset_path.lower()
-    # Use n_jobs=1 for GPU to avoid extreme context switching overhead and VRAM OOM
-    # or n_jobs=-1 for CPU
-    import torch
-    num_jobs = 1 if (is_china and torch.cuda.is_available()) else -1
-    
-    results = Parallel(n_jobs=num_jobs, verbose=5)(
-        delayed(process_single_fold)(train_idx, test_idx) for train_idx, test_idx in cv.split(ds_full.data)
+    # Un job per GPU (evita context-switching/VRAM OOM), tutti i core per CPU.
+    use_gpu = is_china_dataset(dataset_path) and torch.cuda.is_available()
+    num_jobs = 1 if use_gpu else -1
+
+    # backend='loky' esplicito: ogni fold gira in un processo separato, con memoria e
+    # stato RNG (numpy/torch) completamente isolati. Con 'threading' (a cui joblib può
+    # fare fallback silenzioso) i fold condividerebbero lo stesso stato RNG globale,
+    # rendendo i seed fissati in process_single_fold inefficaci in caso di esecuzione
+    # concorrente -> risultati non riproducibili run-to-run nonostante i seed.
+    # Richiede che process_single_fold sia importata da un modulo separato (fold_worker.py),
+    # non definita in questo script __main__ (vedi nota in testa al file).
+    fold_results = Parallel(n_jobs=num_jobs, backend='loky', verbose=5)(
+        delayed(process_single_fold)(
+            dataset_path, target_col, use_knn_imputation, train_idx, test_idx,
+            random_seed=RANDOM_SEED,
+            max_fuzzy_clusters=MAX_FUZZY_CLUSTERS,
+            dcnn_lr=DCNN_LEARNING_RATE,
+            dcnn_epochs=DCNN_EPOCHS,
+            dcnn_batch_size=DCNN_BATCH_SIZE,
+            loss_type=DCNN_LOSS_TYPE,
+            huber_delta_multiplier=DCNN_HUBER_DELTA_MEDIAN_MULTIPLIER,
+        )
+        for train_idx, test_idx in cv.split(ds_full.data)
     )
-    
-    actuals = []
-    predictions = []
-    fold_indices = []
-    
-    for idx, res in enumerate(results):
-        actuals.extend(res[0])
-        predictions.extend(res[1])
-        fold_indices.extend([idx] * len(res[0]))
-        
-    mae, sa, delta = compute_metrics(actuals, predictions)
-    
-    # Save per-fold results
+
+    # --- Aggregazione dei risultati di tutti i fold ---
+    actuals, predictions, fold_indices = [], [], []
+    for fold_idx, (fold_actuals, fold_predictions) in enumerate(fold_results):
+        actuals.extend(fold_actuals)
+        predictions.extend(fold_predictions)
+        fold_indices.extend([fold_idx] * len(fold_actuals))
+
+    mae, medae, sa, delta = compute_metrics(actuals, predictions)
+
+    # --- Salvataggio dei risultati per-fold (utile per diagnosi outlier/varianza) ---
     df_results = pd.DataFrame({
         'fold_index': fold_indices,
         'actual': actuals,
-        'predicted': predictions
+        'predicted': predictions,
     })
     df_results['abs_error'] = np.abs(df_results['actual'] - df_results['predicted'])
     df_results['squared_error'] = df_results['abs_error'] ** 2
-    ds_name_base = os.path.basename(dataset_path)
-    csv_filename = f"results_per_fold_{ds_name_base}.csv"
+
+    ds_name_no_ext = os.path.splitext(os.path.basename(dataset_path))[0]
+    csv_filename = f"results_per_fold_{ds_name_no_ext}.csv"
     df_results.to_csv(csv_filename, index=False)
     print(f"Saved per-fold results to {csv_filename}")
-    
-    print(f"Results for {os.path.basename(dataset_path)}:")
-    print(f"MAE: {mae:.4f}")
-    print(f"SA:  {sa:.4f}")
-    print(f"Delta: {delta:.4f}")
-    
-    return mae, sa, delta
-    
-    print(f"Results for {os.path.basename(dataset_path)}:")
-    print(f"MAE: {mae:.4f}")
-    print(f"SA:  {sa:.4f}")
-    print(f"Delta: {delta:.4f}")
-    
-    return mae, sa, delta
-    
-    print(f"Results for {os.path.basename(dataset_path)}:")
-    print(f"MAE: {mae:.4f}")
-    print(f"SA:  {sa:.4f}")
-    print(f"Delta: {delta:.4f}")
-    
-    return mae, sa, delta
 
-if __name__ == '__main__':
-    datasets = [
-        '../Software-estimation-datasets/COCOMO-81.csv',
-    ]
-    
-    import time
-    import torch
-    
+    print(f"Results for {os.path.basename(dataset_path)}:")
+    print(f"MAE:   {mae:.4f}")
+    print(f"MedAE: {medae:.4f}")
+    print(f"SA:    {sa:.4f}")
+    print(f"Delta: {delta:.4f}")
+
+    return mae, medae, sa, delta
+
+
+# --------------------------------------------------------------------------- #
+# Entry point: run all configured datasets and print a summary table
+# --------------------------------------------------------------------------- #
+
+def main():
     if torch.cuda.is_available():
         print(f"GPU Detected: {torch.cuda.get_device_name(0)}")
-        print("Note: Using GPU ONLY for China.arff. CPU is faster for other small datasets due to transfer overhead.")
+        print("Note: Using GPU ONLY for China.arff. CPU is faster for other small "
+              "datasets due to transfer overhead.")
     else:
         print("No GPU detected.")
-    
+
     results = {}
-    for ds_path in datasets:
-        if os.path.exists(ds_path):
-            start_time = time.time()
-            mae, sa, delta = run_loocv(ds_path)
-            elapsed = time.time() - start_time
-            method = '10-fold' if 'china' in ds_path.lower() else 'LOOCV'
-            results[os.path.basename(ds_path)] = {'MAE': mae, 'SA': sa, 'Delta': delta, 'Time': elapsed, 'Method': method}
-            print(f"Time for {os.path.basename(ds_path)}: {elapsed:.2f} seconds")
-        else:
+    for ds_path in DATASETS_TO_EVALUATE:
+        if not os.path.exists(ds_path):
             print(f"File not found: {ds_path}")
-            
-    print("\n" + "="*75)
+            continue
+
+        start_time = time.time()
+        mae, medae, sa, delta = run_loocv(ds_path)
+        elapsed = time.time() - start_time
+
+        method = '10-fold' if is_china_dataset(ds_path) else 'LOOCV'
+        results[os.path.basename(ds_path)] = {
+            'MAE': mae, 'MedAE': medae, 'SA': sa, 'Delta': delta, 'Time': elapsed, 'Method': method,
+        }
+        print(f"Time for {os.path.basename(ds_path)}: {elapsed:.2f} seconds")
+
+    print_summary_table(results)
+
+
+def print_summary_table(results: dict):
+    print("\n" + "=" * 90)
     print("FINAL SUMMARY (POST-FIX LOOCV / 10-FOLD)")
-    print("="*75)
-    print(f"{'Dataset':<15} | {'Method':<10} | {'MAE':<10} | {'SA':<10} | {'Delta':<10} | {'Time (s)':<10}")
-    for k, v in results.items():
-        print(f"{k:<15} | {v['Method']:<10} | {v['MAE']:<10.2f} | {v['SA']:<10.2f} | {v['Delta']:<10.2f} | {v['Time']:<10.2f}")
-    print("="*75)
+    print("=" * 90)
+    print(f"{'Dataset':<15} | {'Method':<10} | {'MAE':<10} | {'MedAE':<10} | {'SA':<10} | "
+          f"{'Delta':<10} | {'Time (s)':<10}")
+    for name, r in results.items():
+        print(f"{name:<15} | {r['Method']:<10} | {r['MAE']:<10.2f} | {r['MedAE']:<10.2f} | "
+              f"{r['SA']:<10.2f} | {r['Delta']:<10.2f} | {r['Time']:<10.2f}")
+    print("=" * 90)
+
+
+if __name__ == '__main__':
+    main()
