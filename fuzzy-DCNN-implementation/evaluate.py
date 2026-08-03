@@ -37,11 +37,12 @@ sys.stdout.reconfigure(line_buffering=True)
 # --------------------------------------------------------------------------- #
 
 RANDOM_SEED = 42
+CV_SPLIT_SEED = 42
 N_RANDOM_BASELINE_RUNS = 1000   # numero di permutazioni casuali usate per stimare SA / Delta
 MAX_FUZZY_CLUSTERS = 10         # limite superiore per la ricerca del k ottimale (indice Xie-Beni)
 
 DCNN_LEARNING_RATE = 0.001
-DCNN_EPOCHS = 400
+DCNN_EPOCHS = 1000
 DCNN_BATCH_SIZE = 16
 
 # Loss function: 'rmse' (default originale, sensibile agli outlier) o 'huber'
@@ -49,24 +50,16 @@ DCNN_BATCH_SIZE = 16
 # outlier).
 #
 # huber_delta è calcolato dinamicamente PER FOLD in fold_worker.py, come:
-#     delta_normalizzato = (mediana_target_training * DCNN_HUBER_DELTA_MEDIAN_MULTIPLIER)
-#                           / target_range_del_fold
+#     delta_normalizzato = mediana_target_training / target_range_del_fold
 # usando SOLO il training set del fold corrente (nessun leakage dal test), così la
 # soglia si adatta alla scala/skewness di ciascun dataset invece di essere un valore
-# fisso arbitrario. Lo sweep manuale su COCOMO ha mostrato una curva a campana attorno
-# a multiplier=1.0 (cioè delta ≈ 1x la mediana): sia troppo largo che troppo piccolo
-# peggiorano il risultato rispetto a questo punto.
+# fisso arbitrario.
 DCNN_LOSS_TYPE = 'huber'
-DCNN_HUBER_DELTA_MEDIAN_MULTIPLIER = 1.0
 
 CHINA_KFOLD_SPLITS = 10         # China usa 10-fold invece di LOOCV (dataset troppo grande per LOOCV)
 
 DATASETS_TO_EVALUATE = [
-    '../Software-estimation-datasets/albrecht.arff',
     '../Software-estimation-datasets/COCOMO-81.csv',
-    '../Software-estimation-datasets/Desharnais.csv',
-    '../Software-estimation-datasets/maxwell.arff',
-    '../Software-estimation-datasets/china.arff',
 ]
 
 
@@ -111,11 +104,16 @@ def compute_metrics(actual, predicted):
 # Full LOOCV/K-fold run for one dataset
 # --------------------------------------------------------------------------- #
 
-def run_loocv(dataset_path: str, use_knn_imputation: bool = False):
+def run_loocv(dataset_path: str, use_knn_imputation: bool = False,
+              seed: int = None, loss_type: str = None,
+              n_jobs: int = None, force_k: int = None):
     """
     Esegue la validazione completa (LOOCV, o 10-fold per China) su un dataset,
     salva i risultati per-fold in CSV e restituisce (MAE, MedAE, SA, Delta) aggregati.
     """
+    model_seed = seed if seed is not None else RANDOM_SEED
+    loss_type = loss_type if loss_type is not None else DCNN_LOSS_TYPE
+
     print(f"\n--- Running LOOCV for {os.path.basename(dataset_path)} "
           f"(KNN={use_knn_imputation}) ---", flush=True)
 
@@ -124,14 +122,15 @@ def run_loocv(dataset_path: str, use_knn_imputation: bool = False):
                        use_knn_imputation=use_knn_imputation, verbose=True)
 
     if is_china_dataset(dataset_path):
-        cv = KFold(n_splits=CHINA_KFOLD_SPLITS, shuffle=True, random_state=RANDOM_SEED)
+        cv_seed = CV_SPLIT_SEED if 'CV_SPLIT_SEED' in globals() else 42
+        cv = KFold(n_splits=CHINA_KFOLD_SPLITS, shuffle=True, random_state=cv_seed)
         print("NOTE: Using 10-fold CV (not LOOCV) for China as a preliminary check.", flush=True)
     else:
         cv = LeaveOneOut()
 
     # Un job per GPU (evita context-switching/VRAM OOM), tutti i core per CPU.
     use_gpu = is_china_dataset(dataset_path) and torch.cuda.is_available()
-    num_jobs = 1 if use_gpu else -1
+    num_jobs = n_jobs if n_jobs is not None else (1 if use_gpu else -1)
 
     # backend='loky' esplicito: ogni fold gira in un processo separato, con memoria e
     # stato RNG (numpy/torch) completamente isolati. Con 'threading' (a cui joblib può
@@ -143,13 +142,13 @@ def run_loocv(dataset_path: str, use_knn_imputation: bool = False):
     fold_results = Parallel(n_jobs=num_jobs, backend='loky', verbose=5)(
         delayed(process_single_fold)(
             dataset_path, target_col, use_knn_imputation, train_idx, test_idx,
-            random_seed=RANDOM_SEED,
+            random_seed=model_seed,
             max_fuzzy_clusters=MAX_FUZZY_CLUSTERS,
             dcnn_lr=DCNN_LEARNING_RATE,
             dcnn_epochs=DCNN_EPOCHS,
             dcnn_batch_size=DCNN_BATCH_SIZE,
-            loss_type=DCNN_LOSS_TYPE,
-            huber_delta_multiplier=DCNN_HUBER_DELTA_MEDIAN_MULTIPLIER,
+            loss_type=loss_type,
+            force_k=force_k,
         )
         for train_idx, test_idx in cv.split(ds_full.data)
     )
@@ -173,7 +172,16 @@ def run_loocv(dataset_path: str, use_knn_imputation: bool = False):
     df_results['squared_error'] = df_results['abs_error'] ** 2
 
     ds_name_no_ext = os.path.splitext(os.path.basename(dataset_path))[0]
-    csv_filename = f"results_per_fold_{ds_name_no_ext}.csv"
+    
+    # Costruisci un identificatore per la configurazione
+    config_parts = ['FDCNN', loss_type]
+    if force_k is not None:
+        config_parts.append(f"k{force_k}")
+    config_parts.append(f"seed{model_seed}")
+    
+    config_str = "_".join(config_parts)
+    csv_filename = f"results_per_fold_{ds_name_no_ext}__{config_str}.csv"
+    
     df_results.to_csv(csv_filename, index=False)
     print(f"Saved per-fold results to {csv_filename}")
 
@@ -183,7 +191,7 @@ def run_loocv(dataset_path: str, use_knn_imputation: bool = False):
     print(f"SA:    {sa:.4f}")
     print(f"Delta: {delta:.4f}")
 
-    return mae, medae, sa, delta
+    return mae, medae, sa, delta, csv_filename
 
 
 # --------------------------------------------------------------------------- #
@@ -205,7 +213,7 @@ def main():
             continue
 
         start_time = time.time()
-        mae, medae, sa, delta = run_loocv(ds_path)
+        mae, medae, sa, delta, _ = run_loocv(ds_path)
         elapsed = time.time() - start_time
 
         method = '10-fold' if is_china_dataset(ds_path) else 'LOOCV'

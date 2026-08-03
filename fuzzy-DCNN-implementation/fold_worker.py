@@ -33,48 +33,45 @@ def target_column_for(dataset_path: str) -> str:
     return 'actual' if 'cocomo' in dataset_path.lower() else 'Effort'
 
 
-def compute_dynamic_huber_delta(dataset: Dataset, multiplier: float) -> float:
+def compute_dynamic_huber_delta(dataset: Dataset) -> float:
     """
-    Calcola huber_delta (in scala target normalizzata [0, 1]) come frazione della
-    mediana del target di TRAINING del fold corrente, così la soglia si adatta
-    automaticamente alla scala/skewness di ciascun dataset invece di essere un
-    valore fisso arbitrario. Usa solo dataset.training_target_unscaled -> nessun
-    leakage dal fold di test.
+    Calcola il parametro delta ottimale per la HuberLoss dinamicamente
+    basandosi ESCLUSIVAMENTE sui dati del fold di training.
+    
+    Usa la mediana dei target di training.
     """
     train_median_original = dataset.training_target_unscaled.median()
-    delta_original = multiplier * train_median_original
-    delta_normalized = delta_original / dataset.target_range_val
+    delta_normalized = train_median_original / dataset.target_range_val
     return float(delta_normalized)
 
 
 def process_single_fold(dataset_path: str, target_col: str, use_knn_imputation: bool,
-                         train_idx, test_idx, random_seed: int, max_fuzzy_clusters: int,
-                         dcnn_lr: float, dcnn_epochs: int, dcnn_batch_size: int,
-                         loss_type: str, huber_delta_multiplier: float):
+                        train_idx: np.ndarray, test_idx: np.ndarray,
+                        random_seed: int,
+                        max_fuzzy_clusters: int,
+                        dcnn_lr: float, dcnn_epochs: int, dcnn_batch_size: int,
+                        loss_type: str,
+                        force_k: int = None):
     """
     Allena e valuta il modello Fuzzy-DCNN su un singolo fold LOOCV/K-fold.
-
-    Ogni worker fissa i propri seed per garantire determinismo. Con backend='loky'
-    (processi separati, non thread) questo è realmente efficace: a differenza del
-    threading, non c'è stato RNG globale condiviso tra fold eseguiti in parallelo.
     """
     torch.set_num_threads(1)
     np.random.seed(random_seed)
     torch.manual_seed(random_seed)
     random.seed(random_seed)
 
-    # Il GPU viene usato solo per China: per gli altri dataset (piccoli) l'overhead
-    # di trasferimento CPU<->GPU rende la CPU più veloce.
     use_gpu = is_china_dataset(dataset_path) and torch.cuda.is_available()
     if use_gpu:
         device = 'cuda'
         torch.cuda.manual_seed_all(random_seed)
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
+        import os
+        os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':4096:8'
+        torch.use_deterministic_algorithms(True)
     else:
         device = 'cpu'
 
-    # 1. Split + scaling (fit su train, applicato a test) — vedi dataset.py
     dataset = Dataset(
         dataset_path,
         target_column_name=target_col,
@@ -83,13 +80,16 @@ def process_single_fold(dataset_path: str, target_col: str, use_knn_imputation: 
         use_knn_imputation=use_knn_imputation,
     )
 
-    # 2. Fuzzificazione: FCM sul training set, scelta di k via indice Xie-Beni
-    fuzzy_model, optimal_k, mu_train = elbow_XB(dataset, max_clusters=max_fuzzy_clusters)
+    fuzzy_model, optimal_k, mu_train = elbow_XB(dataset, max_clusters=max_fuzzy_clusters, force_k=force_k)
     mu_test = fuzzy_model.transform(dataset.testing_data)
 
     # 3. Training del DCNN sulle membership fuzzy
     target_mean_scaled = dataset.training_target_scaled.mean()
-    dynamic_huber_delta = compute_dynamic_huber_delta(dataset, huber_delta_multiplier)
+    if loss_type == 'huber':
+        dynamic_huber_delta = compute_dynamic_huber_delta(dataset)
+    else:
+        dynamic_huber_delta = 1.0 # Default fallback
+        
     estimator = EffortEstimator(
         m_features=dataset.training_data.shape[0],
         k_clusters=optimal_k,
@@ -101,7 +101,7 @@ def process_single_fold(dataset_path: str, target_col: str, use_knn_imputation: 
         target_mean=target_mean_scaled,
         device=device,
         loss_type=loss_type,
-        huber_delta=dynamic_huber_delta,
+        huber_delta=dynamic_huber_delta
     )
     estimator.fit(mu_train, dataset.training_target_scaled.values)
 
