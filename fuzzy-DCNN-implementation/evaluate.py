@@ -1,23 +1,3 @@
-"""
-LOOCV evaluation pipeline for the Fuzzy-DCNN effort estimation model.
-
-Pipeline per dataset:
-    1. Carica e pre-processa il dataset (dataset.py).
-    2. Per ogni fold (LOOCV, o 10-fold per China):
-        a. Fuzzifica i dati di training con FCM (elbow.py sceglie k via indice Xie-Beni).
-        b. Allena un DCNN sulle membership fuzzy (DCNN.py).
-        c. Predice sul fold di test e riporta la scala originale del target.
-    3. Aggrega le predizioni di tutti i fold e calcola MAE / MedAE / SA / Delta.
-
-NOTA IMPORTANTE (Windows + joblib):
-La logica di un singolo fold vive in fold_worker.py, NON in questo file, perché
-questo script viene eseguito come __main__. Su Windows, joblib (backend 'loky') usa
-processi 'spawn': se la funzione worker fosse definita qui, cloudpickle dovrebbe
-serializzarla per valore insieme allo stato del modulo (incluso, se toccato, il
-contesto CUDA/cuDNN, che contiene oggetti nativi non serializzabili). Importandola
-da un modulo separato, i worker la referenziano per import invece che per valore.
-"""
-
 import os
 import sys
 import time
@@ -48,12 +28,6 @@ DCNN_BATCH_SIZE = 16
 # Loss function: 'rmse' (default originale, sensibile agli outlier) o 'huber'
 # (quadratica per errori piccoli, lineare per errori grandi -> meno dominata dagli
 # outlier).
-#
-# huber_delta è calcolato dinamicamente PER FOLD in fold_worker.py, come:
-#     delta_normalizzato = mediana_target_training / target_range_del_fold
-# usando SOLO il training set del fold corrente (nessun leakage dal test), così la
-# soglia si adatta alla scala/skewness di ciascun dataset invece di essere un valore
-# fisso arbitrario.
 DCNN_LOSS_TYPE = 'huber'
 
 CHINA_KFOLD_SPLITS = 10         # China usa 10-fold invece di LOOCV (dataset troppo grande per LOOCV)

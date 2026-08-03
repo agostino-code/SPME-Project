@@ -1,19 +1,3 @@
-"""
-Logica di un singolo fold LOOCV/K-fold, isolata in un modulo importabile a parte.
-
-Perché questo file esiste separato da evaluate.py:
-Su Windows, joblib (backend 'loky') usa processi separati creati con 'spawn', non
-'fork'. Se la funzione eseguita nei worker (process_single_fold) fosse definita
-direttamente nello script eseguito come __main__ (cioè in evaluate.py quando lanciato
-con `python evaluate.py`), cloudpickle dovrebbe serializzarla "per valore" insieme a
-tutto lo stato del modulo in cui vive — incluso, se la GPU è stata toccata nel
-processo principale (es. torch.cuda.is_available()), il contesto CUDA/cuDNN, che
-contiene oggetti nativi non serializzabili (es. 'CudnnModule').
-Definendo process_single_fold in un modulo importabile separato, i worker possono
-semplicemente IMPORTARE la funzione per riferimento invece di serializzarla per
-valore, evitando il crash.
-"""
-
 import random
 import numpy as np
 import torch
@@ -31,18 +15,6 @@ def is_china_dataset(dataset_path: str) -> bool:
 def target_column_for(dataset_path: str) -> str:
     """COCOMO usa 'actual' come nome della colonna target; tutti gli altri usano 'Effort'."""
     return 'actual' if 'cocomo' in dataset_path.lower() else 'Effort'
-
-
-def compute_dynamic_huber_delta(dataset: Dataset) -> float:
-    """
-    Calcola il parametro delta ottimale per la HuberLoss dinamicamente
-    basandosi ESCLUSIVAMENTE sui dati del fold di training.
-    
-    Usa la mediana dei target di training.
-    """
-    train_median_original = dataset.training_target_unscaled.median()
-    delta_normalized = train_median_original / dataset.target_range_val
-    return float(delta_normalized)
 
 
 def process_single_fold(dataset_path: str, target_col: str, use_knn_imputation: bool,
@@ -85,10 +57,6 @@ def process_single_fold(dataset_path: str, target_col: str, use_knn_imputation: 
 
     # 3. Training del DCNN sulle membership fuzzy
     target_mean_scaled = dataset.training_target_scaled.mean()
-    if loss_type == 'huber':
-        dynamic_huber_delta = compute_dynamic_huber_delta(dataset)
-    else:
-        dynamic_huber_delta = 1.0 # Default fallback
         
     estimator = EffortEstimator(
         m_features=dataset.training_data.shape[0],
@@ -101,7 +69,7 @@ def process_single_fold(dataset_path: str, target_col: str, use_knn_imputation: 
         target_mean=target_mean_scaled,
         device=device,
         loss_type=loss_type,
-        huber_delta=dynamic_huber_delta
+        huber_delta=0.01
     )
     estimator.fit(mu_train, dataset.training_target_scaled.values)
 
