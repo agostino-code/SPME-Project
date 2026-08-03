@@ -2,6 +2,7 @@ __pycache__
 .*
 !.python-version
 AGENTS.md
+PLAN.md
 uv.lock
 
 # latex

@@ -19,10 +19,14 @@ def target_column_for(dataset_path: str) -> str:
 
 def process_single_fold(dataset_path: str, target_col: str, use_knn_imputation: bool,
                         train_idx: np.ndarray, test_idx: np.ndarray,
-                        random_seed: int,
-                        max_fuzzy_clusters: int,
-                        dcnn_lr: float, dcnn_epochs: int, dcnn_batch_size: int,
-                        loss_type: str,
+                        random_seed: int = 42,
+                        max_fuzzy_clusters: int = 10,
+                        dcnn_lr: float = 0.001, dcnn_epochs: int = 1000, dcnn_batch_size: int = 16,
+                        num_filters: int = 16, dropout_rate: float = 0.2, weight_decay: float = 0.0,
+                        loss_type: str = 'huber', huber_delta: float = 0.01,
+                        activation_type: str = 'linear_clip',
+                        fuzzy_m: float = 2.0,
+                        use_log_target: bool = False,
                         force_k: int = None):
     """
     Allena e valuta il modello Fuzzy-DCNN su un singolo fold LOOCV/K-fold.
@@ -50,12 +54,12 @@ def process_single_fold(dataset_path: str, target_col: str, use_knn_imputation: 
         train_indices=train_idx,
         test_indices=test_idx,
         use_knn_imputation=use_knn_imputation,
+        use_log_target=use_log_target,
     )
 
-    fuzzy_model, optimal_k, mu_train = elbow_XB(dataset, max_clusters=max_fuzzy_clusters, force_k=force_k)
+    fuzzy_model, optimal_k, mu_train = elbow_XB(dataset, max_clusters=max_fuzzy_clusters, force_k=force_k, fuzzifier_m=fuzzy_m)
     mu_test = fuzzy_model.transform(dataset.testing_data)
 
-    # 3. Training del DCNN sulle membership fuzzy
     target_mean_scaled = dataset.training_target_scaled.mean()
         
     estimator = EffortEstimator(
@@ -64,19 +68,22 @@ def process_single_fold(dataset_path: str, target_col: str, use_knn_imputation: 
         lr=dcnn_lr,
         epochs=dcnn_epochs,
         batch_size=dcnn_batch_size,
+        weight_decay=weight_decay,
         target_min=0.0,
         target_range=1.0,
         target_mean=target_mean_scaled,
         device=device,
+        num_filters=num_filters,
+        dropout_rate=dropout_rate,
         loss_type=loss_type,
-        huber_delta=0.01
+        huber_delta=huber_delta,
+        activation_type=activation_type,
     )
     estimator.fit(mu_train, dataset.training_target_scaled.values)
 
-    # 4. Predizione sul fold di test, riportata alla scala originale
     pred_scaled = estimator.predict(mu_test)
     pred_unscaled = dataset.inverse_transform_target(pred_scaled)
 
     actuals_fold = dataset.testing_target_unscaled.values
     predictions_fold = pred_unscaled
-    return actuals_fold, predictions_fold
+    return actuals_fold, predictions_fold

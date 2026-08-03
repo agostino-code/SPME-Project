@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 
 class Dataset:
-    def __init__(self, arff_path, target_column_name='Effort', test_indices=None, train_indices=None, use_knn_imputation=False, verbose=False):
+    def __init__(self, arff_path, target_column_name='Effort', test_indices=None, train_indices=None, use_knn_imputation=False, verbose=False, use_log_target=False):
         if str(arff_path).endswith('.csv'):
             data = pd.read_csv(arff_path)
         else:
@@ -88,13 +88,21 @@ class Dataset:
         self.training_data = ((training_features - self.feature_min) / feature_range).values.T
         self.testing_data = ((testing_features - self.feature_min) / feature_range).values.T
 
-        # Target Scaling (no log transform)
-        self.target_min = float(training_target.min())
-        self.target_max = float(training_target.max())
+        # Target Scaling & Optional Log Transform
+        self.use_log_target = use_log_target
+        if use_log_target:
+            train_t_proc = np.log1p(np.maximum(training_target.values, 0.0))
+            test_t_proc = np.log1p(np.maximum(testing_target.values, 0.0))
+        else:
+            train_t_proc = training_target.values
+            test_t_proc = testing_target.values
+
+        self.target_min = float(train_t_proc.min())
+        self.target_max = float(train_t_proc.max())
         self.target_range = self.target_max - self.target_min if self.target_max != self.target_min else 1.0
 
-        self.training_target_scaled = ((training_target - self.target_min) / self.target_range)
-        self.testing_target_scaled = ((testing_target - self.target_min) / self.target_range)
+        self.training_target_scaled = pd.Series((train_t_proc - self.target_min) / self.target_range, index=training_target.index)
+        self.testing_target_scaled = pd.Series((test_t_proc - self.target_min) / self.target_range, index=testing_target.index)
 
         self.training_features_df = training_features
         self.testing_features_df = testing_features
@@ -106,4 +114,7 @@ class Dataset:
     def inverse_transform_target(self, y_scaled):
         y_scaled = np.asarray(y_scaled, dtype=float)
         y_unscaled = (y_scaled * self.target_range_val) + self.target_min_val
-        return y_unscaled
+        if self.use_log_target:
+            y_unscaled = np.expm1(y_unscaled)
+            y_unscaled = np.maximum(y_unscaled, 0.0)
+        return y_unscaled
