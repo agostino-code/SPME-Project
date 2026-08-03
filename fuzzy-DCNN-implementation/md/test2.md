@@ -1,6 +1,6 @@
 # Report Diagnostico Fase 4: Correzione del Training, Loss Tuning e Riproducibilità (F-DCNN)
 
-Questo report prosegue la diagnosi delle Fasi 1-3 (vedi test1.md e test2.md), concentrandosi su un problema rimasto irrisolto nella Fase 1: il collasso "Dead ReLU" osservato nell'output della rete su dataset fortemente skewed, e sulla scoperta di un problema metodologico più fondamentale — la non-riproducibilità della pipeline di training — che ha condizionato l'affidabilità di tutti i confronti fatti finora.
+Questo report prosegue la diagnosi delle Fasi 1-3 (vedi test1.md), concentrandosi su un problema rimasto irrisolto nella Fase 1: il collasso "Dead ReLU" osservato nell'output della rete su dataset fortemente skewed, e sulla scoperta di un problema metodologico più fondamentale — la non-riproducibilità della pipeline di training — che ha condizionato l'affidabilità di tutti i confronti fatti finora.
 
 ## Cronologia dei Test Diagnostici
 
