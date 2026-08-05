@@ -65,7 +65,7 @@ def run_cluster_validation():
                         dataset_path=full_path,
                         seed=42,
                         dcnn_epochs=300,
-                        force_k=k,
+                        cluster_method=k,
                         fuzzy_m=m
                     )
                     mae_loocv = loocv_m['mae']

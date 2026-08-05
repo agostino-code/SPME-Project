@@ -2,6 +2,8 @@ import os
 import sys
 import time
 
+import torch
+
 sys.path.append(os.path.dirname(__file__))
 
 from clusters.run_clusters_test import run_cluster_validation
@@ -11,6 +13,7 @@ from huber_loss.run_huber_loss_test import run_huber_loss_evaluation
 from target_transform.run_target_transform_test import run_target_transformation_test
 
 def main():
+    print ("device: ", "cuda" if torch.cuda.is_available() else "cpu")
     print("=" * 90)
     print("      FUZZY-DCNN COMPLETE SOTA TEST SUITE RUNNER")
     print("=" * 90)

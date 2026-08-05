@@ -134,3 +134,37 @@ class FuzzyCMeans:
             return float('inf')
 
         return numerator / denominator
+
+    # Hard-assignment silhouette (picks the cluster with the highest membership degree for each sample)
+    def silhouette_score(self):
+        if self.centroids is None or self.membership_degrees is None:
+            raise ValueError("Model not fitted. Call fit() first.")
+
+        X = self.dataset.training_data.T  # shape: (n_samples, n_features)
+        U = self.membership_degrees        # shape: (n_samples, n_clusters)
+        n_samples, n_clusters = U.shape
+
+        cluster_assignments = np.argmax(U, axis=1) # shape: (n_samples,), each entry is the index of the cluster with the highest membership degree for that sample
+
+        a = np.zeros(n_samples) # cohesion: average distance to points in the same cluster
+        b = np.zeros(n_samples) # separation: average distance to points in the nearest cluster
+
+        for i in range(n_samples):
+            cluster_i = cluster_assignments[i]
+            same_cluster_mask = (cluster_assignments == cluster_i)
+
+            if np.sum(same_cluster_mask) > 1:
+                a[i] = np.mean(np.linalg.norm(X[i] - X[same_cluster_mask], axis=1))
+            else:
+                a[i] = 0.0
+
+            b_values = []
+            for j in range(n_clusters):
+                if j != cluster_i:
+                    other_cluster_points = X[cluster_assignments == j]
+                    if other_cluster_points.size > 0:
+                        b_values.append(np.mean(np.linalg.norm(X[i] - other_cluster_points, axis=1)))
+            b[i] = min(b_values) if b_values else 0.0
+
+        silhouette_scores = (b - a) / np.maximum(a, b)
+        return np.mean(silhouette_scores)

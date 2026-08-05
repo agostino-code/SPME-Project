@@ -82,7 +82,7 @@ def run_loocv_experiment(dataset_path: str,
                          activation_type: str = 'linear_clip',
                          fuzzy_m: float = 2.0,
                          use_log_target: bool = False,
-                         force_k: int = None,
+                         cluster_method: str | int = 'XB-index',
                          n_jobs: int = None):
     
     full_path = resolve_dataset_path(dataset_path)
@@ -117,7 +117,7 @@ def run_loocv_experiment(dataset_path: str,
             activation_type=activation_type,
             fuzzy_m=fuzzy_m,
             use_log_target=use_log_target,
-            force_k=force_k
+            cluster_method=cluster_method
         )
         for train_idx, test_idx in cv.split(ds_full.data)
     )

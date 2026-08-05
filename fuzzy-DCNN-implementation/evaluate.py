@@ -26,7 +26,7 @@ CHINA_KFOLD_SPLITS = 10         # China usa 10-fold invece di LOOCV
 # Optimal hyperparameter configurations per dataset (empirically derived from SOTA test suite)
 DATASET_BEST_PARAMS = {
     'cocomo-81.csv': {
-        'force_k': 3,
+        'cluster_method': 3,
         'num_filters': 8,
         'dropout_rate': 0.3,
         'weight_decay': 0.0,
@@ -39,7 +39,7 @@ DATASET_BEST_PARAMS = {
         'use_log_target': True,
     },
     'albrecht.arff': {
-        'force_k': 4,
+        'cluster_method': 4,
         'num_filters': 32,
         'dropout_rate': 0.3,
         'weight_decay': 0.0,
@@ -52,7 +52,7 @@ DATASET_BEST_PARAMS = {
         'use_log_target': False,
     },
     'desharnais.csv': {
-        'force_k': 2,
+        'cluster_method': 2,
         'num_filters': 8,
         'dropout_rate': 0.2,
         'weight_decay': 0.0,
@@ -65,7 +65,7 @@ DATASET_BEST_PARAMS = {
         'use_log_target': True,
     },
     'maxwell.arff': {
-        'force_k': 2,
+        'cluster_method': 2,
         'num_filters': 32,
         'dropout_rate': 0.1,
         'weight_decay': 0.0,
@@ -78,7 +78,7 @@ DATASET_BEST_PARAMS = {
         'use_log_target': False,
     },
     'china.arff': {
-        'force_k': 3,
+        'cluster_method': 3,
         'num_filters': 32,
         'dropout_rate': 0.1,
         'weight_decay': 0.0,
@@ -148,7 +148,7 @@ def run_loocv(dataset_path: str, use_knn_imputation: bool = False,
 
     model_seed = seed if seed is not None else RANDOM_SEED
     loss_type = ds_params.get('loss_type', 'huber')
-    force_k = ds_params.get('force_k', None)
+    cluster_method = ds_params.get('cluster_method', None)
     dcnn_lr = ds_params.get('dcnn_lr', 0.001)
     dcnn_epochs = ds_params.get('dcnn_epochs', 1000)
     dcnn_batch_size = ds_params.get('dcnn_batch_size', 16)
@@ -160,7 +160,7 @@ def run_loocv(dataset_path: str, use_knn_imputation: bool = False,
     use_log_target = ds_params.get('use_log_target', False)
 
     print(f"\n--- Running LOOCV for {os.path.basename(dataset_path)} "
-          f"(KNN={use_knn_imputation}, LogTarget={use_log_target}, Loss={loss_type}, k={force_k}) ---", flush=True)
+          f"(KNN={use_knn_imputation}, LogTarget={use_log_target}, Loss={loss_type}, k={cluster_method}) ---", flush=True)
 
     target_col = target_column_for(dataset_path)
     ds_full = Dataset(dataset_path, target_column_name=target_col,
@@ -196,7 +196,7 @@ def run_loocv(dataset_path: str, use_knn_imputation: bool = False,
             huber_delta=huber_delta,
             activation_type=activation_type,
             use_log_target=use_log_target,
-            force_k=force_k,
+            cluster_method=cluster_method,
         )
         for train_idx, test_idx in cv.split(ds_full.data)
     )
@@ -218,7 +218,7 @@ def run_loocv(dataset_path: str, use_knn_imputation: bool = False,
     df_results['squared_error'] = df_results['abs_error'] ** 2
 
     ds_name_no_ext = os.path.splitext(os.path.basename(dataset_path))[0]
-    config_str = f"FDCNN_{loss_type}_k{force_k}_seed{model_seed}"
+    config_str = f"FDCNN_{loss_type}_k{cluster_method}_seed{model_seed}"
     csv_filename = f"results_per_fold_{ds_name_no_ext}__{config_str}.csv"
     
     df_results.to_csv(csv_filename, index=False)

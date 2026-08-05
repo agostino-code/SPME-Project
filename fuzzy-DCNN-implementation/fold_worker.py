@@ -3,7 +3,7 @@ import numpy as np
 import torch
 
 from dataset import Dataset
-from elbow import elbow_XB
+from elbow import *
 from DCNN import EffortEstimator
 
 
@@ -27,7 +27,7 @@ def process_single_fold(dataset_path: str, target_col: str, use_knn_imputation: 
                         activation_type: str = 'linear_clip',
                         fuzzy_m: float = 2.0,
                         use_log_target: bool = False,
-                        force_k: int = None):
+                        cluster_method: str | int = 'XB-index'):
     """
     Allena e valuta il modello Fuzzy-DCNN su un singolo fold LOOCV/K-fold.
     """
@@ -57,7 +57,12 @@ def process_single_fold(dataset_path: str, target_col: str, use_knn_imputation: 
         use_log_target=use_log_target,
     )
 
-    fuzzy_model, optimal_k, mu_train = elbow_XB(dataset, max_clusters=max_fuzzy_clusters, force_k=force_k, fuzzifier_m=fuzzy_m)
+    if cluster_method == 'XB-index':
+        fuzzy_model, optimal_k, mu_train = elbow_XB(dataset, max_clusters=max_fuzzy_clusters, fuzzifier_m=fuzzy_m)
+    elif cluster_method == 'silhouette':
+        fuzzy_model, optimal_k, mu_train = elbow_silhouette(dataset, max_clusters=max_fuzzy_clusters, fuzzifier_m=fuzzy_m)
+    else:  # int (fixed method)
+        fuzzy_model, optimal_k, mu_train = fixed_fcm(dataset, cluster_method, fuzzifier_m=fuzzy_m)
     mu_test = fuzzy_model.transform(dataset.testing_data)
 
     target_mean_scaled = dataset.training_target_scaled.mean()
@@ -86,4 +91,4 @@ def process_single_fold(dataset_path: str, target_col: str, use_knn_imputation: 
 
     actuals_fold = dataset.testing_target_unscaled.values
     predictions_fold = pred_unscaled
-    return actuals_fold, predictions_fold
+    return actuals_fold, predictions_fold

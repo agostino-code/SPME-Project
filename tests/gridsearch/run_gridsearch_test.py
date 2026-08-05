@@ -21,7 +21,8 @@ def run_2stage_gridsearch():
     stage1_grid = {
         'num_filters': [8, 16, 32],
         'dropout_rate': [0.1, 0.2, 0.3],
-        'weight_decay': [0.0, 0.001]
+        'weight_decay': [0.0, 0.001],
+        'cluster_method': [3, 8, 'XB-index', 'silhouette']
     }
 
     # Stage 2 search grid (Optimization & Training)
@@ -47,7 +48,7 @@ def run_2stage_gridsearch():
         curr_epochs = 300
 
         best_s1_medae = float('inf')
-        best_s1_config = {'num_filters': 16, 'dropout_rate': 0.2, 'weight_decay': 0.0}
+        best_s1_config = {'num_filters': 16, 'dropout_rate': 0.2, 'weight_decay': 0.0, 'cluster_method': 3}
 
         print("\n--- STAGE 1: Architecture & Regularization Search ---")
         s1_keys, s1_vals = zip(*stage1_grid.items())
@@ -61,13 +62,14 @@ def run_2stage_gridsearch():
                 dcnn_epochs=curr_epochs,
                 num_filters=params['num_filters'],
                 dropout_rate=params['dropout_rate'],
-                weight_decay=params['weight_decay']
+                weight_decay=params['weight_decay'],
+                cluster_method=params['cluster_method']
             )
 
             record = {'stage': 1, **params, 'dcnn_lr': curr_lr, 'dcnn_batch_size': curr_batch, 'dcnn_epochs': curr_epochs, **m}
             dataset_records.append(record)
 
-            print(f"  Filters: {params['num_filters']:2d} | Dropout: {params['dropout_rate']:.1f} | L2: {params['weight_decay']:.4f} => MedAE: {m['medae']:8.2f} | MAE: {m['mae']:8.2f} | SA: {m['sa']:.4f}")
+            print(f"  Filters: {params['num_filters']:2d} | Dropout: {params['dropout_rate']:.1f} | L2: {params['weight_decay']:.4f} | Cluster Method: {params['cluster_method']} => MedAE: {m['medae']:8.2f} | MAE: {m['mae']:8.2f} | SA: {m['sa']:.4f}")
 
             if m['medae'] < best_s1_medae:
                 best_s1_medae = m['medae']
@@ -88,6 +90,7 @@ def run_2stage_gridsearch():
                 num_filters=best_s1_config['num_filters'],
                 dropout_rate=best_s1_config['dropout_rate'],
                 weight_decay=best_s1_config['weight_decay'],
+                cluster_method=best_s1_config['cluster_method'],
                 dcnn_lr=params['dcnn_lr'],
                 dcnn_batch_size=params['dcnn_batch_size'],
                 dcnn_epochs=params['dcnn_epochs']
