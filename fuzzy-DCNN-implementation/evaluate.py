@@ -80,7 +80,7 @@ def compute_metrics(actual, predicted):
 
 def run_loocv(dataset_path: str, use_knn_imputation: bool = False,
               seed: int = None, loss_type: str = None,
-              n_jobs: int = None, force_k: int = None):
+              n_jobs: int = None, cluster_method: str | int = 'XB-index'):
     """
     Esegue la validazione completa (LOOCV, o 10-fold per China) su un dataset,
     salva i risultati per-fold in CSV e restituisce (MAE, MedAE, SA, Delta) aggregati.
@@ -122,7 +122,7 @@ def run_loocv(dataset_path: str, use_knn_imputation: bool = False,
             dcnn_epochs=DCNN_EPOCHS,
             dcnn_batch_size=DCNN_BATCH_SIZE,
             loss_type=loss_type,
-            force_k=force_k,
+            cluster_method=cluster_method
         )
         for train_idx, test_idx in cv.split(ds_full.data)
     )
@@ -149,8 +149,8 @@ def run_loocv(dataset_path: str, use_knn_imputation: bool = False,
     
     # Costruisci un identificatore per la configurazione
     config_parts = ['FDCNN', loss_type]
-    if force_k is not None:
-        config_parts.append(f"k{force_k}")
+    if cluster_method == 'fixed':
+        config_parts.append(f"k{cluster_method}")
     config_parts.append(f"seed{model_seed}")
     
     config_str = "_".join(config_parts)
