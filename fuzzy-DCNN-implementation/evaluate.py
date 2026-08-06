@@ -26,7 +26,7 @@ CHINA_KFOLD_SPLITS = 10         # China usa 10-fold invece di LOOCV
 # Optimal hyperparameter configurations per dataset (empirically derived from SOTA test suite)
 DATASET_BEST_PARAMS = {
     'cocomo-81.csv': {
-        'cluster_method': 3,
+        'cluster_method': 2,
         'num_filters': 8,
         'dropout_rate': 0.3,
         'weight_decay': 0.0,
@@ -52,7 +52,7 @@ DATASET_BEST_PARAMS = {
         'use_log_target': False,
     },
     'desharnais.csv': {
-        'cluster_method': 2,
+        'cluster_method': 3,
         'num_filters': 8,
         'dropout_rate': 0.2,
         'weight_decay': 0.0,
@@ -78,7 +78,7 @@ DATASET_BEST_PARAMS = {
         'use_log_target': False,
     },
     'china.arff': {
-        'cluster_method': 3,
+        'cluster_method': 5,
         'num_filters': 32,
         'dropout_rate': 0.1,
         'weight_decay': 0.0,

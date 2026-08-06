@@ -1,0 +1,32 @@
+{
+  "cocomo": {
+    "optimal_k_silhouette": 2,
+    "optimal_k_davies_bouldin": 4,
+    "optimal_k_loocv_performance": 2,
+    "recommended_k": 2
+  },
+  "albrecht": {
+    "optimal_k_silhouette": 2,
+    "optimal_k_davies_bouldin": 2,
+    "optimal_k_loocv_performance": 3,
+    "recommended_k": 3
+  },
+  "desharnais": {
+    "optimal_k_silhouette": 2,
+    "optimal_k_davies_bouldin": 6,
+    "optimal_k_loocv_performance": 3,
+    "recommended_k": 3
+  },
+  "maxwell": {
+    "optimal_k_silhouette": 2,
+    "optimal_k_davies_bouldin": 6,
+    "optimal_k_loocv_performance": 4,
+    "recommended_k": 4
+  },
+  "china": {
+    "optimal_k_silhouette": 2,
+    "optimal_k_davies_bouldin": 2,
+    "optimal_k_loocv_performance": 5,
+    "recommended_k": 5
+  }
+}
