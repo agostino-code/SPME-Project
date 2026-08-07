@@ -63,7 +63,7 @@ def run_cluster_validation():
                 if m == 2.0 and k in [2, 3, 4, 5, 6]:
                     loocv_m, _, _ = run_loocv_experiment(
                         dataset_path=full_path,
-                        seed=42,
+                        seed=2501439,
                         dcnn_epochs=300,
                         cluster_method=k,
                         fuzzy_m=m

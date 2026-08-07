@@ -31,7 +31,7 @@ def resolve_dataset_path(dataset_key_or_path: str) -> str:
         return os.path.abspath(dataset_key_or_path)
     raise FileNotFoundError(f"Dataset not found: {dataset_key_or_path}")
 
-def set_global_seed(seed: int = 42):
+def set_global_seed(seed: int = 2501439):
     np.random.seed(seed)
     torch.manual_seed(seed)
     if torch.cuda.is_available():
@@ -68,7 +68,7 @@ def compute_metrics(actual, predicted, n_random_baseline_runs=1000):
     }
 
 def run_loocv_experiment(dataset_path: str,
-                         seed: int = 42,
+                         seed: int = 2501439,
                          use_knn_imputation: bool = False,
                          max_fuzzy_clusters: int = 10,
                          dcnn_lr: float = 0.001,
@@ -90,7 +90,7 @@ def run_loocv_experiment(dataset_path: str,
     ds_full = Dataset(full_path, target_column_name=target_col, use_knn_imputation=use_knn_imputation, verbose=False)
 
     if is_china_dataset(full_path):
-        cv = KFold(n_splits=10, shuffle=True, random_state=42)
+        cv = KFold(n_splits=10, shuffle=True, random_state=2501439)
     else:
         cv = LeaveOneOut()
 

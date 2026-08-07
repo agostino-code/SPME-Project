@@ -56,7 +56,7 @@ def run_2stage_gridsearch():
             params = dict(zip(s1_keys, combo))
             m, _, _ = run_loocv_experiment(
                 dataset_path=ds_path,
-                seed=42,
+                seed=2501439,
                 dcnn_lr=curr_lr,
                 dcnn_batch_size=curr_batch,
                 dcnn_epochs=curr_epochs,
@@ -86,7 +86,7 @@ def run_2stage_gridsearch():
             params = dict(zip(s2_keys, combo))
             m, _, _ = run_loocv_experiment(
                 dataset_path=ds_path,
-                seed=42,
+                seed=2501439,
                 num_filters=best_s1_config['num_filters'],
                 dropout_rate=best_s1_config['dropout_rate'],
                 weight_decay=best_s1_config['weight_decay'],

@@ -23,7 +23,7 @@ def run_target_transformation_test():
         ('Log Target log1p + Huber(0.01)', True, 'huber'),
     ]
 
-    seeds = [42, 123, 456]
+    seeds = [2501439, 3964827]
     records = []
 
     for ds_name, ds_path in DATASET_PATHS.items():

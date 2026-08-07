@@ -26,7 +26,7 @@ def run_huber_loss_evaluation():
         ('Huber Loss (delta=0.5)', 'huber', 0.5),
     ]
 
-    seeds = [42, 123, 456]
+    seeds = [2501439, 3964827]
     records = []
 
     for ds_name, ds_path in DATASET_PATHS.items():

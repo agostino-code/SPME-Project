@@ -67,7 +67,7 @@ class Dataset:
             train_idx = features.index[train_indices]
             test_idx = features.index[test_indices]
         elif test_indices is None:
-            train_idx = features.sample(frac=0.7, random_state=42).index
+            train_idx = features.sample(frac=0.7, random_state=2501439).index
             test_idx = features.index.difference(train_idx)
         else:
             test_idx = features.index[test_indices]
@@ -117,4 +117,4 @@ class Dataset:
         if self.use_log_target:
             y_unscaled = np.expm1(y_unscaled)
             y_unscaled = np.maximum(y_unscaled, 0.0)
-        return y_unscaled
+        return y_unscaled

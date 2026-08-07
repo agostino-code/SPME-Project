@@ -16,8 +16,8 @@ sys.stdout.reconfigure(line_buffering=True)
 # Configuration
 # --------------------------------------------------------------------------- #
 
-RANDOM_SEED = 42
-CV_SPLIT_SEED = 42
+RANDOM_SEED = 2501439
+CV_SPLIT_SEED = 2501439
 N_RANDOM_BASELINE_RUNS = 1000   # numero di permutazioni casuali usate per stimare SA / Delta
 MAX_FUZZY_CLUSTERS = 10         # limite superiore per la ricerca del k ottimale
 

@@ -1,0 +1,62 @@
+{
+  "cocomo": {
+    "best_medae": 87.9250381750986,
+    "hyperparameters": {
+      "num_filters": 32,
+      "dropout_rate": 0.1,
+      "weight_decay": 0.0,
+      "cluster_method": "XB-index",
+      "dcnn_lr": 0.005,
+      "dcnn_batch_size": 8,
+      "dcnn_epochs": 1000
+    }
+  },
+  "albrecht": {
+    "best_medae": 3.165020111575723,
+    "hyperparameters": {
+      "num_filters": 16,
+      "dropout_rate": 0.2,
+      "weight_decay": 0.0,
+      "cluster_method": 3,
+      "dcnn_lr": 0.0005,
+      "dcnn_batch_size": 8,
+      "dcnn_epochs": 1000
+    }
+  },
+  "desharnais": {
+    "best_medae": 1208.1211599111557,
+    "hyperparameters": {
+      "num_filters": 8,
+      "dropout_rate": 0.2,
+      "weight_decay": 0.0,
+      "cluster_method": "silhouette",
+      "dcnn_lr": 0.001,
+      "dcnn_batch_size": 8,
+      "dcnn_epochs": 200
+    }
+  },
+  "maxwell": {
+    "best_medae": 1986.933900307864,
+    "hyperparameters": {
+      "num_filters": 32,
+      "dropout_rate": 0.1,
+      "weight_decay": 0.0,
+      "cluster_method": "silhouette",
+      "dcnn_lr": 0.001,
+      "dcnn_batch_size": 16,
+      "dcnn_epochs": 1000
+    }
+  },
+  "china": {
+    "best_medae": 224.5828062221408,
+    "hyperparameters": {
+      "num_filters": 16,
+      "dropout_rate": 0.1,
+      "weight_decay": 0.0,
+      "cluster_method": 8,
+      "dcnn_lr": 0.0005,
+      "dcnn_batch_size": 16,
+      "dcnn_epochs": 1000
+    }
+  }
+}

@@ -19,7 +19,7 @@ def target_column_for(dataset_path: str) -> str:
 
 def process_single_fold(dataset_path: str, target_col: str, use_knn_imputation: bool,
                         train_idx: np.ndarray, test_idx: np.ndarray,
-                        random_seed: int = 42,
+                        random_seed: int = 2501439,
                         max_fuzzy_clusters: int = 10,
                         dcnn_lr: float = 0.001, dcnn_epochs: int = 1000, dcnn_batch_size: int = 16,
                         num_filters: int = 16, dropout_rate: float = 0.2, weight_decay: float = 0.0,
