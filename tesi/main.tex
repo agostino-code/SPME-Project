@@ -211,55 +211,50 @@ filtri convoluzionali 2D che permettono un'estrazione di caratteristiche più ef
 La letteratura scientifica in ambito Software Engineering~\cite{10.1007/978-3-032-04288-0_10, 4027147} individua e categorizza quattro principali macro-approcci per la stima dello sforzo: stime basate su algoritmi, stime basate sul giudizio di esperti, stime basate su modelli di machine learning, e metodi ibridi. Ad essi si aggiunge il recente filone basato su Large Language Models.
 
 \subsection{Stime basate su algoritmi}\label{sec:algoritmici}
-I metodi algoritmici applicano formule matematiche dedotte empiricamente da dati storici. È essenziale tracciare una distinzione concettuale rigorosa tra:
+I metodi algoritmici applicano formule matematiche e modelli statistici empirici dedotti da dati storici di progetti pregressi. È essenziale tracciare una distinzione concettuale rigorosa tra due sotto-famiglie di metodi aventi profili di costo ed economicità nettamente differenti:
 \begin{itemize}
-    \item \textbf{Metodi di stima dello sforzo (Effort Estimation Methods):} modelli come COCOMO (Constructive Cost Model) e SLIM, che calcolano direttamente lo sforzo $E$ (espresso tipicamente in mesi-uomo o ore-persona) in funzione della dimensione del software $S$ e di opportuni \textit{cost driver} legati all'ambiente di sviluppo:
+    \item \textbf{Metodi di stima dello sforzo (Effort Estimation Methods):} modelli come COCOMO (Constructive Cost Model) e SLIM, che calcolano direttamente lo sforzo di sviluppo $E$ (espresso tipicamente in mesi-uomo o ore-persona) a partire da una misura della dimensione del software $S$ già disponibile, combinandola con opportuni \textit{cost driver} legati all'ambiente ed al team di sviluppo:
           \begin{equation}
               E = a \cdot S^b \cdot \prod_{i} EM_i
           \end{equation}
-    \item \textbf{Metodi di stima della dimensione (Functional Size Measurement, FSM):} metodologie standardizzate ISO come Function Point Analysis (FPA IFPUG) e COSMIC, il cui scopo non è calcolare lo sforzo, ma determinare una misura oggettiva della dimensione funzionale espressa in Function Point (FP) o COSMIC Function Points (CFP).
+          Una volta noti i valori dei \textit{cost driver}, tali modelli applicano una formula in modo rapido ed economico, senza richiedere necessariamente l'intervento continuo di un esperto nella fase di calcolo finale~\cite{DBLP:journals/corr/DuHC15a}.
+    \item \textbf{Metodi di stima della dimensione (Functional Size Measurement, FSM):} metodologie standardizzate ISO come Function Point Analysis (FPA IFPUG) e COSMIC, il cui scopo non è calcolare lo sforzo, ma determinare una misura oggettiva della dimensione funzionale espressa in Function Point (FP) o COSMIC Function Points (CFP) da fornire come dato di input ai metodi della prima categoria.
 \end{itemize}
 
-I metodi FSM richiedono l'intervento di misuratori esperti e certificati,
-registrando ritmi di misurazione lenti (200--600 FP/giorno
-~\cite{DIMARTINO2020106308}).
+I metodi di misurazione della dimensione (FSM) richiedono l'intervento di misuratori esperti e certificati: la caratterizzazione delle componenti funzionali del sistema (distinzione tra File Logici Interni, Interfacce Esterne, Input, Output ed Inchieste, unitamente alla determinazione della loro complessità in termini di DET e RET) è un compito complesso e costoso. Gli studi sulla produttività attestano ritmi di misurazione lenti, compresi tra **200 e 600 FP al giorno**~\cite{DIMARTINO2020106308}, fattore che ha fortemente motivato lo sviluppo di approcci di approssimazione veloci.
 
-Tale costo operazionale ha motivato lo sviluppo di
-approssimazioni veloci. Inoltre, i modelli algoritmici tradizionali soffrono di
-rigidità quando applicati a paradigmi di sviluppo moderni (Agile, Cloud,
-microservizi), rendendo complessa la calibrazione dei parametri
-~\cite{DBLP:journals/corr/MenziesYMBH16}.
+Inoltre, l'efficacia di entrambe le categorie di modelli algoritmici è limitata dalla rigidità nel declinarsi in contesti tecnologici e metodologici differenti. La letteratura~\cite{DBLP:journals/corr/MenziesYMBH16} evidenzia consistenti criticità nell'impiego del modello COCOMO II a seguito della capillare diffusione di paradigmi Agile, microservizi e servizi Cloud, rendendo necessaria una costante ricalibrazione dei parametri o la proposta di evoluzioni quali COCOMO III.
 
 \subsection{Stime basate sul giudizio di esperti}
-Tali approcci si fondano sull'esperienza accumulata dai professionisti. Sebbene
-soggetti a bias cognitivi e soggettività, la letteratura dimostra come
-l'esperienza diretta permetta spesso di catturare sfumature di contesto non
-formalizzabili numericamente~\cite{4027147}.
+Tali approcci si fondano sull'esperienza accumulata dai professionisti del settore per valutare i costi ed i tempi di realizzazione del software. Sebbene soggetti a soggettività e bias cognitivi, la letteratura evidenzia come l'esperienza diretta permetta di catturare sfumature di contesto non formalizzabili numericamente; lo studio sistematico di Jørgensen e Shepperd~\cite{4027147} evidenzia infatti che in **10 dei 16 studi empirici analizzati** le stime basate sul giudizio di esperti hanno registrato un vantaggio in termini di accuratezza rispetto ai metodi automatici o algoritmici.
 
-Rientrano in questa categoria:
+Tra le metodologie più diffuse figurano:
 \begin{itemize}
-    \item \textbf{Planning Poker e Delphi Wideband:} processi iterativi e anonimi per il raggiungimento del consenso tra sviluppatori.
-    \item \textbf{Story Points:} misurazione relativa della complessità e dello sforzo percepito in ambiti Agile.
-    \item \textbf{Insiemi Fuzzy ed Expert System:} modellazione della vaghezza dell'informazione tramite funzioni di appartenenza definite da esperti domain-specific.
+    \item \textbf{Planning Poker e Delphi Wideband:} processi iterativi e anonimi in cui più esperti stimano in parallelo lo sforzo per completare un'attività, confrontando le stime e discutendo le discrepanze fino al raggiungimento del consenso.
+    \item \textbf{Analisi degli Story Point:} misurazione relativa della complessità e dello sforzo percepito in ambiti Agile, in cui lo sforzo viene espresso rispetto a baseline di attività note.
+    \item \textbf{Insiemi Fuzzy ed Expert System:} modellazione della vaghezza dell'informazione tramite funzioni di appartenenza definite da esperti domain-specific per rappresentare l'incertezza su ogni componente del progetto.
 \end{itemize}
 
 \subsection{Stime basate su modelli di apprendimento automatico}
-I modelli di Machine Learning (ML) apprendono direttamente dai dati storici
-relazioni complesse ed altamente non lineari. Tra le tecniche più diffuse
-figurano la Regressione Lineare (SLR/MLR), gli Alberi Decisionali, Support
-Vector Regression (SVR), Random Forest (RF), Gradient Boosting (XGBoost,
-LightGBM) e i Multi-Layer Perceptron (MLP). Tali modelli offrono elevata
-adattabilità, ma richiedono dataset ben bilanciati e presentano criticità
-legate all'interpretabilità dei risultati (\textit{black-box effect}).
+I modelli di Machine Learning (ML) apprendono direttamente dai dati storici relazioni complesse ed altamente non lineari tra le caratteristiche dei progetti e lo sforzo finale. Tali modelli offrono un'elevata capacità di adattamento a contesti eterogenei e possono essere continuamente aggiornati con i dati dei progetti appena conclusi. Tuttavia, richiedono dataset ben bilanciati e presentano costi operazionali legati alla complessità ed all'interpretabilità dei risultati (\textit{black-box effect}).
 
-\subsection{Approcci ibridi}
-I metodi ibridi combinano due o più tecniche per sfruttarne i rispettivi punti
-di forza. Si dividono in \textbf{omogenei} (es.\ ensemble di più alberi
-decisionali) ed \textbf{eterogenei} (es.\ sistemi neuro-fuzzy come SEER-SEM
-~\cite{DBLP:journals/corr/DuHC15a} o l'unione di clustering e reti neurali). Di
-Martino et al.\ non costituisce un approccio ibrido poiché applica SLR su dati
-pre-processati, mentre Azzeh et al.\ rappresenta un modello ML ibrido eterogeneo
-(FCM + DCNN).
+Gli approcci di machine learning maggiormente studiati nella letteratura SDEE includono:
+\begin{itemize}
+    \item \textbf{Regressione Lineare Semplice e Multipla (SLR/MLR):} modelli statistici che stabiliscono relazioni matematiche lineari tra le dimensioni del software e l'effort.
+    \item \textbf{Alberi Decisionali e Random Forest:} strutture gerarchiche di decisione singole o combinate in ensemble per incrementare la stabilità delle predizioni.
+    \item \textbf{Support Vector Machines (SVM / SVR):} predittori basati sull'individuazione di iperpiani ottimali di separazione e regressione in spazi ad alta dimensione.
+    \item \textbf{Gradient Boosting (XGBoost, LightGBM):} modelli ensemble sequenziali in cui ciascun albero correggere gli errori residui commessi dagli alberi precedenti.
+    \item \textbf{Reti Neurali Artificiali e Multi-Layer Perceptron (MLP):} architetture a nodi interconnessi capaci di apprendere relazioni fortemente non lineari.
+\end{itemize}
+
+\subsection{Approcci ibridi e classificazione dei modelli}
+I metodi ibridi combinano due o più tecniche per sfruttarne i rispettivi punti di forza (es.\ un modello algoritmico per la stima preliminare raffinato poi tramite esperti o intelligenza artificiale). La letteratura distingue due principali categorie:
+\begin{itemize}
+    \item \textbf{Omogenei:} combinazione dello stesso modello di base configurato con parametri differenti (es.\ ensemble di più alberi decisionali).
+    \item \textbf{Eterogenei:} combinazione di modelli concettualmente differenti (es.\ sistemi neuro-fuzzy come SEER-SEM~\cite{DBLP:journals/corr/DuHC15a} o l'unione di clustering ed algoritmi di ottimizzazione).
+\end{itemize}
+
+È essenziale chiarire che le macro-categorie della letteratura servono a fornire un quadro sistematico ma non costituiscono definizioni rigide. Nello specifico, il modello di **Di Martino et al.** non costituisce un approccio ibrido, in quanto la prima fase di preprocessing dei dati (misurazione approssimata della dimensione) non rappresenta un modello di stima dello sforzo, ma un metodo per ottenere una misura di input fornita ad un predittore di Regressione Lineare Semplice (SLR). Analogamente, il modello **F-DCNN di Azzeh et al.** descritto nella Sezione~\ref{sec:fdcnn}, pur articolandosi in due fasi distinte (clusterizzazione fuzzy e rete neurale convoluzionale profonda), rappresenta un metodo di apprendimento automatico guidato da feature engineering fuzzy e non un approccio ibrido eterogeneo propriamente detto.
 
 \subsection{Modelli basati su Transformer e Large Language Models (LLM)}
 Negli ultimi anni (2024--2026), l'evoluzione del Deep Learning basato sull'architettura Transformer~\cite{vaswani2017attention} ha aperto un nuovo paradigma nella stima dello sforzo software~\cite{llm_sdee_2025, transformer_sdee_2024}. A differenza dei modelli tradizionali basati esclusivamente su metriche vettoriali o dimensionali preraccolte, i modelli basati su LLM e linguaggi di embedding semantico permettono di elaborare direttamente i testi in linguaggio naturale che descrivono i requisiti di sistema (User Stories, Software Requirement Specifications - SRS, o ticket Jira).
@@ -279,78 +274,53 @@ Sebbene gli approcci LLM offrano il notevole vantaggio di operare direttamente s
 
 Al contrario, modelli di apprendimento automatico focalizzati su feature tabulari come la rete \textbf{Fuzzy-DCNN} proposta in questo lavoro rappresentano l'estremo opposto dello spettro tecnologico: elaborando caratteristiche numeriche sintetizzate con un'inferenza deterministica inferiore ai \textbf{5 millisecondi} su hardware CPU standard, costituiscono la soluzione ideale per l'integrazione \textit{on-the-fly} in dashboard di supporto decisionale locale.
 
-\section{Stima dello Sforzo tramite Misurazioni Funzionali Approssimate: Di Martino et al. (2020)}\label{sec:dimartino}
+\section{Stima dello sforzo tramite misurazioni funzionali approssimate: Di Martino et al. (2020)}\label{sec:dimartino}
 L'articolo di Di Martino et al.~\cite{DIMARTINO2020106308} indaga empiricamente l'efficacia dell'utilizzo di misure di dimensione funzionale approssimate come input per predittori lineari dello sforzo, al fine di ridurre i tempi ed i costi del processo di sizing.
 
 \subsection{Metodo}
-Gli autori hanno analizzato 25 progetti software industriali sviluppati in
-ambito web da una singola azienda italiana. Ciascun progetto è stato misurato
-tramite:
+Gli autori hanno analizzato 25 progetti software industriali sviluppati in ambito web da una singola azienda italiana. Ciascun progetto è stato misurato tramite:
 \begin{itemize}
-    \item Standard FPA (IFPUG) e due sue approssimazioni: \textit{High Level FPA} (HLFPA)
-          e \textit{Indicative FPA} (IFPA).
-    \item Standard COSMIC e tre sue approssimazioni: \textit{Average Functional Process}
-          (AFP), \textit{Fixed Size Classification} (FSC), ed \textit{Equal Size Bands}
-          (ESB).
+    \item Standard FPA (IFPUG) e due sue approssimazioni: \textit{High Level FPA} (HLFPA) e \textit{Indicative FPA} (IFPA).
+    \item Standard COSMIC e tre sue approssimazioni: \textit{Average Functional Process} (AFP), \textit{Fixed Size Classification} (FSC), ed \textit{Equal Size Bands} (ESB).
 \end{itemize}
 Per ogni misura ottenuta, è stato addestrato un modello di Regressione Lineare Semplice (SLR) per stimare lo sforzo espresso in ore-persona:
 \begin{equation}
     E = \beta_0 + \beta_1 \cdot \text{Size}_{\text{approssimata}}
 \end{equation}
-La validazione è stata condotta tramite Leave-One-Out Cross-Validation (LOOCV), valutando la metrica Mean of Absolute Residuals (MAR) e verificando la significatività statistica mediante test di Wilcoxon ed effect size di Vargha-Delaney rispetto a due baseline costanti (media e mediana dello sforzo).
+Gli autori hanno deliberatamente evitato l'impiego di predittori non lineari complessi o algoritmi di machine learning avanzati, poiché l'obiettivo primario dello studio era isolare e confrontare direttamente l'efficacia delle diverse misure di dimensione funzionale, mantenendo neutra ed invariante la tecnica di stima. La validazione è stata condotta tramite Leave-One-Out Cross-Validation (LOOCV), valutando la metrica Mean of Absolute Residuals (MAR) e verificando la significatività statistica mediante test di Wilcoxon ed effect size di Vargha-Delaney rispetto a due baseline costanti (media e mediana dello sforzo).
 
 \subsection{Risultati}
-Per le approssimazioni FPA, il modello basato su \textbf{High Level FPA} (MAR =
-561 ore-persona) ha superato nettamente le baseline (MAR 843 e 872) ottenendo
-un'accuratezza comparabile a quella del modello FPA standard (MAR = 580). Al
-contrario, \textbf{Indicative FPA} (MAR = 760) non ha mostrato differenze
-statisticamente significative rispetto alle baseline, risultando sconsigliato.
+Per le approssimazioni FPA, il modello basato su \textbf{High Level FPA} (MAR = 561 ore-persona) ha superato nettamente le baseline (MAR rispettivamente 843 e 872 ore-persona) ottenendo un'accuratezza comparabile a quella del modello FPA standard (MAR = 580), senza differenze statisticamente significative. Al contrario, \textbf{Indicative FPA} (MAR = 760) non ha mostrato differenze statisticamente significative rispetto alle baseline, risultando ampiamente sconsigliato dagli autori anche per stime di massima ordine di grandezza.
 
-Per le approssimazioni COSMIC, tutte le varianti hanno superato le baseline.
-L'errore è diminuito al crescere della sofisticazione del metodo: \textbf{Equal
-    Size Bands} (MAR = 295) ha mostrato una differenza di solo il 7\% rispetto a
-COSMIC standard (MAR = 276), risultando l'approssimazione più efficace.
+Per le approssimazioni COSMIC, tutte le varianti hanno superato significativamente le baseline con un \textit{effect size} ampio. Confrontati con il modello COSMIC standard (MAR = 276 ore-persona), i modelli approssimati mostrano un errore via via minore al crescere della sofisticazione del metodo: \textbf{Average Functional Process} produce un errore circa il $40\%$ superiore, \textbf{Fixed Size Classification} circa il $22\%$ superiore, mentre \textbf{Equal Size Bands} (MAR = 295) mostra una differenza di solo il $7\%$, non statisticamente significativa rispetto al metodo standard.
 
 \subsection{Discussione}
-Gli autori concludono che High Level FPA ed Equal Size Bands rappresentano
-soluzioni ideali nelle fasi iniziali di progetto quando le informazioni sono
-incomplete, riducendo drasticamente lo sforzo di misurazione senza un degrado
-significativo della precisione della stima.
+Gli autori concludono che le approssimazioni non sono equivalenti tra loro: \textbf{High Level FPA} ed \textbf{Equal Size Bands} rappresentano soluzioni ideali nelle fasi iniziali di progetto quando le informazioni o il tempo sono limitati, riducendo drasticamente lo sforzo di misurazione senza un degrado significativo della precisione. Al contrario, Indicative FPA, Average Functional Process e Fixed Size Classification introducono un degrado rilevante dell'accuratezza o richiedono comunque calibrazioni su progetti pregressi ed una classificazione soggettiva dei processi funzionali (con un tasso di errata classificazione in letteratura superiore al $10\%$).
 
-\section{Stima dello Sforzo con Rete Convoluzionale e Clustering Fuzzy: Azzeh et al. (2024)}\label{sec:fdcnn}
-L'articolo di Azzeh et al.~\cite{article} propone la rete \textbf{F-DCNN} (Fuzzy Deep Convolutional Neural Network), introducendo l'uso delle CNN 2D nel dominio SDEE.\
-\subsection{Motivazione e Metodo}
-Le reti convoluzionali 2D richiedono in input dati strutturati come matrici
-bidimensionali (analogamente alle immagini). Nei dataset di stima dello sforzo
-software, tuttavia, i progetti sono rappresentati come vettori monodimensionali
-di caratteristiche numeriche. Per superare tale incongruenza (\textit{input
-    mismatch}), gli autori introducono una fase di feature engineering basata su
-\textbf{Fuzzy C-Means (FCM)}:
+\section{Stima dello sforzo con rete convoluzionale e Clustering Fuzzy: Azzeh et al. (2024)}\label{sec:fdcnn}
+L'articolo di Azzeh et al.~\cite{article} propone la rete \textbf{F-DCNN} (Fuzzy Deep Convolutional Neural Network), introducendo l'uso delle CNN 2D nel dominio SDEE. A differenza dell'approccio di Di Martino et al., che valuta diverse misure di dimensione mantenendo fissa la tecnica di stima (SLR), questo lavoro sviluppa una nuova architettura di machine learning mantenendo come input le feature vettoriali tabulari tradizionali.
+
+\subsection{Motivazione e metodo}
+Le reti convoluzionali 2D, sebbene consolidate in ambito Computer Vision, non erano mai state applicate alla stima dello sforzo software a causa dell'incongruenza della forma dei dati (\textit{input mismatch}): \begin{quote}
+    «the DCNN was not used before for the problem of effort estimation because of the input mismatch. The DCNN requires input in the form of 2D matrix, which is not available on the current datasets»~\cite{article}.
+\end{quote}
+
+Per superare tale limite, gli autori introducono una fase di feature engineering basata su \textbf{Fuzzy C-Means (FCM)}:
 \begin{enumerate}
-    \item Il dataset vettoriale viene partizionato in $k$ cluster fuzzy.
-    \item Per ogni osservazione $x_i$ e per ogni feature $j$, viene calcolato il grado di
-          appartenenza fuzzy $\mu_{ij} \in [0, 1]$ rispetto al centroide del cluster.
-    \item Ne deriva una matrice 2D di dimensioni $(\text{feature} \times k)$ fornita in
-          input alla rete DCNN.\
+    \item Il dataset vettoriale viene partizionato in $k$ cluster fuzzy (con $k$ selezionato mediante l'indice Xie-Beni).
+    \item Per ogni osservazione $x_i$ e per ogni feature $j$, viene calcolato il grado di appartenenza fuzzy $\mu_{ij} \in [0, 1]$ rispetto al centroide del cluster tramite funzioni di appartenenza gaussiane.
+    \item Ne deriva una matrice 2D di dimensioni $(\text{feature} \times k)$ fornita in input alla rete DCNN.\
 \end{enumerate}
 
-L'architettura DCNN prevede due strati convoluzionali 2D con 16 filtri
-$3\times3$, strati di Max Pooling $2\times2$, ed uno strato Dense completamente
-connesso (32 e 16 neuroni) con attivazione finale ReLU, addestrata tramite
-ottimizzatore Adam e MSE Loss.
+L'intuizione fondante risiede nel fatto che la rappresentazione fuzzy permetta di descrivere le caratteristiche di un progetto software in modo flessibile ed articolato: un progetto può collocarsi prevalentemente all'interno di un cluster (ad esempio caratterizzato da un elevato numero di interfacce esterne e pochi file logici), ma mantenere al contempo gradi di appartenenza non nulli verso altri cluster. La rete convoluzionale apprende filtri 2D capaci di correlare tali pattern sfumati con lo sforzo di sviluppo finale.
 
-\subsection{Risultati Empirici del Paper Originale}
-La valutazione condotta da Azzeh et al.~\cite{article} su dataset pubblici sotto LOOCV ha
-mostrato prestazioni superiori rispetto a predittori tradizionali quali ABE,
-SVR, Random Forest, XGBoost e MLP, ottenendo valori di Standardized Accuracy
-(SA) elevati e riduzioni del Mean Absolute Error (MAE).
+L'architettura DCNN prevede due strati convoluzionali 2D con 16 filtri $3\times3$, strati di Max Pooling $2\times2$, ed uno strato Dense completamente connesso (32 e 16 neuroni) con attivazione finale ReLU, addestrata tramite ottimizzatore Adam e MSE Loss.
 
-\subsection{Analisi di Riproducibilità e Reverse Engineering del Modello Baseline}
-In fase di replica e validazione indipendente del modello F-DCNN, è emerso un
-consistente divario metodologico tra le metriche teoriche dichiarate da Azzeh
-et al.~\cite{article} e quelle effettivamente riproducibili su codice standard
-(Tabella~\ref{tab:baseline_gap}). Un'analisi rigorosa ha permesso di
-evidenziare quattro aspetti cruciali:
+\subsection{Risultati empirici del paper originale}
+La valutazione condotta da Azzeh et al.~\cite{article} su dataset pubblici sotto LOOCV ha mostrato prestazioni superiori rispetto a predittori tradizionali quali Analogy-Based Effort Estimation (ABE), Support Vector Regression (SVR), Random Forest (RF), XGBoost e Multi-Layer Perceptron (MLP), ottenendo valori di Standardized Accuracy (SA) elevati e riduzioni del Mean Absolute Error (MAE).
+
+\subsection{Analisi di riproducibilità e reverse engineering del modello baseline}
+In fase di replica e validazione indipendente del modello F-DCNN, è emerso un consistente divario metodologico tra le metriche teoriche dichiarate da Azzeh et al.~\cite{article} e quelle effettivamente riproducibili su codice standard (Tabella~\ref{tab:baseline_gap}). Un'analisi rigorosa ha permesso di evidenziare quattro aspetti cruciali:
 
 \begin{table}[htbp]
     \centering
@@ -371,25 +341,25 @@ evidenziare quattro aspetti cruciali:
 
 Dall'analisi sono emerse quattro evidenze metodologiche determinanti:
 \begin{itemize}
-    \item \textbf{Bonifica Architetturale e Preprocessing:} È stata rimossa una convoluzione pointwise $1\times1$ con Batch Normalization indebitamente presente nelle implementazioni di riferimento, ripristinando la fedele topologia convoluzionale 2D con Max Pooling. Inoltre, è stato corretto l'encoding categorico di COCOMO-81 (\texttt{dev\_mode}), preservando integralmente le 17 feature descritte in letteratura.
-    \item \textbf{Analisi delle Formule di Fuzzificazione:} Sono stati individuati refusi tipografici nelle equazioni di appartenenza fuzzy del paper originale (fattore $4\delta^2$ a denominatore ed incongruenze su $\delta_{rj}$). La nostra sperimentazione ha confermato che l'adozione della deviazione standard RMS corretta garantisce una copertura dello spazio latente ottimale senza distorsioni aritmetiche.
-    \item \textbf{Instabilità del Gradiente e Collasso Dead ReLU:} L'addestramento su target grezzi non scalati ad elevata varianza produceva gradienti superiori a $10.000$, causando nel $67\%$ dei fold di COCOMO-81 il collasso permanente dell'output a $0.0$.
-    \item \textbf{Esperimento di Controllo con Random Forest e Ipotesi MedAE:} Poiché il modello Random Forest è invariante per trasformazioni monotone delle feature e dello scaling, la nostra replica ha confermato sotto LOOCV un $\text{MAE} = 490.82$ a fronte di un $\text{MedAE} = 114.02$. Poiché il paper originale dichiarava un $\text{MAE} = 178$ per Random Forest, i nostri risultati empirici suggeriscono una rilevante discrepanza che potrebbe essere riconducibile a una differente aggregazione delle metriche (es.\ MedAE riportata in luogo del MAE) o a scelte di preprocessing non esplicitate nei dettagli metodologici originali. Tale evidenza rende essenziale la formalizzazione di un baseline rigorosamente controllato e pienamente riproducibile, come proposto in questa tesi.
+    \item \textbf{Bonifica architetturale e Preprocessing:} È stata rimossa una convoluzione pointwise $1\times1$ con Batch Normalization indebitamente presente nelle implementazioni di riferimento, ripristinando la fedele topologia convoluzionale 2D con Max Pooling. Inoltre, è stato corretto l'encoding categorico di COCOMO-81 (\texttt{dev\_mode}), preservando integralmente le 17 feature descritte in letteratura.
+    \item \textbf{Analisi delle formule di Fuzzificazione:} Sono stati individuati refusi tipografici nelle equazioni di appartenenza fuzzy del paper originale (fattore $4\delta^2$ a denominatore ed incongruenze su $\delta_{rj}$). La nostra sperimentazione ha confermato che l'adozione della deviazione standard RMS corretta garantisce una copertura dello spazio latente ottimale senza distorsioni aritmetiche.
+    \item \textbf{Instabilità del gradiente e Collasso Dead ReLU:} L'addestramento su target grezzi non scalati ad elevata varianza produceva gradienti superiori a $10.000$, causando nel $67\%$ dei fold di COCOMO-81 il collasso permanente dell'output a $0.0$.
+    \item \textbf{Esperimento di controllo con Random Forest e Ipotesi MedAE:} Poiché il modello Random Forest è invariante per trasformazioni monotone delle feature e dello scaling, la nostra replica ha confermato sotto LOOCV un $\text{MAE} = 490.82$ a fronte di un $\text{MedAE} = 114.02$. Poiché il paper originale dichiarava un $\text{MAE} = 178$ per Random Forest, i nostri risultati empirici suggeriscono una rilevante discrepanza che potrebbe essere riconducibile a una differente aggregazione delle metriche (es.\ MedAE riportata in luogo del MAE) o a scelte di preprocessing non esplicitate nei dettagli metodologici originali. Tale evidenza rende essenziale la formalizzazione di un baseline rigorosamente controllato e pienamente riproducibile, come proposto in questa tesi.
 \end{itemize}
 
-\subsection{Discussione e Limiti dell'Approccio Baseline}
-Nonostante le buone prestazioni dichiarate, l'analisi approfondita del modello
-baseline evidenzia tre criticità strutturali:
+\subsection{Discussione e limiti dell'approccio baseline}
+Nonostante le buone prestazioni dichiarate, l'analisi approfondita del modello baseline evidenzia tre criticità strutturali:
 \begin{enumerate}
     \item \textbf{Instabilità dell'Indice Xie-Beni (XB):} La selezione del numero ottimale di cluster $k$ basata su XB presenta forte instabilità numerica e tende a selezionare cluster degeneri o collassati in presenza di feature scalate.
     \item \textbf{Problema dei Neuroni Morti (\textit{Dying ReLU}):} L'impiego della funzione di attivazione ReLU nell'ultimo strato di output provoca l'azzeramento permanente dei gradienti durante la backpropagation per predizioni negative intermedie, bloccando l'output del modello a $0.0$ (\textit{Dead Neuron Rate}).
+    \item \textbf{Decadimento dell'Interpretabilità:} L'uso dei gradi di appartenenza fuzzy al posto dei valori originali delle feature limita l'interpretabilità diretta del modello: \begin{quote} «we use membership values of instead of the actual value which might reduce the interpretability of the constructed model»~\cite{article}.\end{quote}
     \item \textbf{Sensibilità agli Outlier ed Asimmetria del Target:} L'uso della loss quadratica MSE (o RMSE) penalizza eccessivamente i grandi errori su progetti outlier, destabilizzando l'addestramento su piccoli dataset.
 \end{enumerate}
 
-\section{Proposta di Ottimizzazione dell'Architettura Fuzzy-DCNN e Design Sperimentale}\label{sec:ottimizzazione}
+\section{Proposta di ottimizzazione dell'architettura Fuzzy-DCNN e design sperimentale}\label{sec:ottimizzazione}
 Per superare i limiti del modello baseline di Azzeh et al., è stata progettata ed eseguita una rigorosa campagna sperimentale articolata su cinque assi di ottimizzazione.
 
-\subsection{Validazione Geometrica dei Cluster Fuzzy}
+\subsection{Validazione geometrica dei Cluster Fuzzy}
 In sostituzione dell'indice Xie-Beni, è stata definita un'analisi multi-metrica
 geometrica per la determinazione del numero ottimale di cluster $k \in [2, 10]$
 ed il tuning dell'esponente di fuzzificazione $m \in [1.5, 2.0, 2.5]$
@@ -426,7 +396,7 @@ tuttavia correlano fortemente con l'effort di sviluppo; (2) la rotazione
 ortogonale altera la topologia euclidea dello spazio, degradando la qualità
 delle matrici di appartenenza fuzzy prodotte da FCM.\
 
-\subsection{Mitigazione dei Neuroni Morti e Selezione dell'Attivazione Output}
+\subsection{Mitigazione dei dead neurons e selezione dell'attivazione output}
 Nel modello baseline di Azzeh et al., l'impiego diretto della funzione di attivazione \texttt{ReLU} al layer di output finale per garantire la non-negatività dello sforzo stimato ($\hat{y} \ge 0$) provocava il grave fenomeno dei neuroni morti (\textit{Dying ReLU}): durante la backpropagation, quando un'attivazione intermedia diventava negativa ($z < 0$), la derivata della ReLU si azzerava permanentemente ($\frac{\partial y}{\partial z} = 0$). Ciò bloccava indefinitamente l'aggiornamento dei pesi sinaptici, causando nel $67\%$ dei fold di COCOMO-81 il collasso dell'output a predizioni nulle.
 
 Per superare tale criticità, è stata formulata l'ipotesi metodologica secondo cui il vincolo fisico di non-negatività dello sforzo debba essere disaccoppiato dall'addestramento della rete. Consentendo la propagazione libera dei gradienti negativi durante la backpropagation (eliminando il blocco a zero delle predizioni negative intermedie), l'aggiornamento dei pesi procede in modo continuo per tutti i neuroni. Tale eliminazione del blocco dei gradienti negativi ha consentito di abbattere il tasso di neuroni morti portandolo esattamente a **$0.0\%$ (Dead Neuron Rate = 0.0\%) su tutti i fold e per tutte le configurazioni sperimentali**.
@@ -440,7 +410,7 @@ Sono state progettate e testate 5 varianti dell'attivazione dello strato di outp
     \item \textbf{Variante E (ELU + 1):} $y = \text{ELU}(z) + 1.0$, con traslazione unitaria.
 \end{itemize}
 
-\subsection{Ottimizzazione Iperparametrica a Due Stadi}
+\subsection{Ottimizzazione Iperparametrica a due stadi}
 Per evitare l'esplosione combinatoria nelle fasi di cross-validation, è stata
 implementata una ricerca a due stadi su ciascun dataset:
 \begin{itemize}
@@ -448,7 +418,7 @@ implementata una ricerca a due stadi su ciascun dataset:
     \item \textbf{Stadio 2 (Training):} ottimizzazione del learning rate ($0.005, 0.001, 0.0005, 0.0001$), della dimensione dei batch ($8, 16, 32$) ed epoche di addestramento.
 \end{itemize}
 
-\subsection{Valutazione delle Loss Function Robuste (Huber Loss e MAE)}
+\subsection{Valutazione delle Loss Function robuste (Huber Loss e MAE)}
 Per gestire l'elevata asimmetria dei dati di sforzo, la loss quadratica
 classica è stata confrontata con la \textbf{Huber Loss (Smooth L1)}
 ~\cite{huber1964robust} guidata dal parametro $\delta \in [0.01, 0.5]$:
@@ -459,7 +429,7 @@ classica è stata confrontata con la \textbf{Huber Loss (Smooth L1)}
     \end{cases}
 \end{equation}
 
-\subsection{Stabilizzazione della Varianza tramite Trasformazione Logaritmica del Target}
+\subsection{Stabilizzazione della varianza tramite trasformazione logaritmica del target}
 È stato testato l'effetto della trasformazione logaritmica della variabile target durante l'addestramento:
 \begin{equation}
     y_{\text{log}} = \ln(1 + y)
@@ -469,7 +439,7 @@ con de-trasformazione esponenziale applicata in fase di inferenza per il calcolo
     \hat{y} = \exp(\hat{y}_{\text{log}}) - 1
 \end{equation}
 
-\subsection{Metriche di Valutazione Formale e Protocollo di Determinismo}
+\subsection{Metriche di valutazione formale e protocollo di determinismo}
 Oltre alle metriche tradizionali Mean Absolute Error ($\text{MAE}$) e Median
 Absolute Error ($\text{MedAE}$), la valutazione adotta le metriche raccomandate
 dalle linee guida empiriche internazionali per la stima dello sforzo:
@@ -486,7 +456,7 @@ dalle linee guida empiriche internazionali per la stima dello sforzo:
           dove $s_{\text{random}}$ è la deviazione standard degli errori del baseline casuale.
 \end{itemize}
 
-\paragraph{Protocollo di Determinismo e Validazione Multi-Seed}
+\paragraph{Protocollo di determinismo e validazione Multi-Seed}
 Per garantire la totale riproducibilità scientifica ed escludere fenomeni di
 sovradimensionamento dovuti a split fortuiti (\textit{lucky seed}), è stato
 implementato un protocollo di isolamento deterministico:
@@ -496,10 +466,10 @@ implementato un protocollo di isolamento deterministico:
     \item \textbf{Separazione dei Semi di Controllo:} È stato mantenuto fisso il seed di partizione dei fold ($S_{\text{CV}} = 42$) e variato su 5 seed indipendenti ($42, 123, 456, 789, 999$) il seed di inizializzazione stocastica dei pesi della rete, riportando medie e deviazioni standard per escludere fluttuazioni artificiali.
 \end{itemize}
 
-\section{Risultati Sperimentali e Confronto Diretto}\label{sec:risultati}
+\section{Risultati sperimentali e confronto diretto}\label{sec:risultati}
 Le sperimentazioni sono state condotte applicando la \textbf{Leave-One-Out Cross-Validation (LOOCV)} sui dataset di piccole dimensioni (\textit{COCOMO-81}, \textit{Albrecht}, \textit{Desharnais}, \textit{Maxwell}) e la \textbf{10-Fold Cross-Validation} su 5 seed casuali differenti per il dataset \textit{China}.
 
-\subsection{Analisi Quantitativa delle Prestazioni}
+\subsection{Analisi quantitativa delle prestazioni}
 
 La Tabella~\ref{tab:clusters} riporta i risultati della validazione dei cluster
 fuzzy, confermando che $m=2.0$ garantisce il miglior compromesso tra coesione e
@@ -590,7 +560,7 @@ la Huber Loss ($\delta=0.01$).
     \end{tabular}
 \end{table}
 
-\subsection{Riepilogo Globale delle Prestazioni Post-Ottimizzazione}
+\subsection{Riepilogo globale delle prestazioni Post-Ottimizzazione}
 La Tabella~\ref{tab:final_benchmark} sintetizza i risultati globali definitivi
 ottenuti dall'architettura F-DCNN ottimizzata con la configurazione di
 iperparametri raccomandata su tutti i 5 dataset benchmark.
@@ -613,7 +583,7 @@ iperparametri raccomandata su tutti i 5 dataset benchmark.
     \end{tabular}
 \end{table}
 
-\subsection{Analisi Puntuale dei Residui ed Impatto degli Outlier}
+\subsection{Analisi puntuale dei residui ed impatto degli Outlier}
 L'analisi dei residui assoluti per singolo fold (\textit{per-fold residual
     tracking}) fornisce una dimostrazione empirica diretta del motivo per cui il
 \textbf{Median Absolute Error (MedAE)} costituisce la metrica d'elezione per la
@@ -635,14 +605,14 @@ Inoltre, il confronto tra $k=3$ e $k=5$ su China dimostra che su campioni ampi
 incrementare il numero di cluster fuzzy permette alla rete convoluzionale di
 apprendere filtri differenziati per classi di complessità omogenee.
 
-\subsection{Validazione Statistica}
+\subsection{Validazione statistica}
 I test dei ranghi con segno di Wilcoxon confermano che i miglioramenti
 introdotti dalla Huber Loss e dalla trasformazione logaritmica del target sono
 statisticamente significativi ($p < 0.05$) su tutti i dataset considerati,
 dimostrando la superiorità sistematica della nostra formulazione rispetto alla
 baseline.
 
-\subsection{Discussione Comparativa}
+\subsection{Discussione comparativa}
 Dal confronto complessivo emerge che:
 \begin{enumerate}
     \item I modelli \textbf{SLR di Di Martino et al.} rappresentano una soluzione ideale
@@ -657,13 +627,13 @@ Dal confronto complessivo emerge che:
           nuovo stato dell'arte in termini di MedAE e Standardized Accuracy.
 \end{enumerate}
 
-\paragraph{Risoluzione del Confronto Sperimentale con Di Martino et al.}
+\paragraph{Risoluzione del confronto sperimentale con Di Martino et al.}
 Si evidenzia un importante vincolo metodologico inerente al confronto tra le due strategie: l'articolo di Di Martino et al.~\cite{DIMARTINO2020106308} valuta l'efficacia delle approssimazioni FSM su un dataset industriale riservato di 25 applicazioni Web sviluppate da una singola azienda italiana. Tale dataset non è accessibile alla comunità scientifica per motivi di riservatezza aziendale e tutela della proprietà intellettuale. Nel presente lavoro, la validazione sperimentale del modello F-DCNN ottimizzato è stata condotta sui 5 dataset benchmark internazionali pubblici maggiormente diffusi in letteratura (\textit{COCOMO-81}, \textit{Albrecht}, \textit{Desharnais}, \textit{Maxwell}, \textit{China}). L'impossibilità di valutare direttamente la rete F-DCNN sul dataset di Di Martino et al.\ costituisce un limite oggettivo dell'attuale letteratura, imponendo di posizionare l'esecuzione di una sperimentazione diretta su tale dataset (o su dataset industriali analoghi con metriche FSM/COSMIC) tra i principali sviluppi futuri della ricerca.
 
-\subsection{Minacce alla Validità}\label{sec:minacce_validita}
+\subsection{Minacce alla validità}\label{sec:minacce_validita}
 In accordo con le linee guida metodologiche per la ricerca sperimentale in Software Engineering, la valutazione di un modello predittivo richiede una formalizzazione esplicita dei potenziali fattori che potrebbero condizionare o limitare la validità dei risultati.
 
-\subsubsection{Validità Interna}
+\subsubsection{Validità interna}
 La validità interna riguarda la stabilità metodologica ed il rigore causale dell'esperimento, assicurando che i miglioramenti osservati siano attribuibili alle modifiche architetturali e non ad artefatti di calcolo o fluttuazioni stocastiche:
 \begin{itemize}
     \item \textbf{Isolamento Multiprocesso (\texttt{joblib/loky}):} Per prevenire race condition o contaminazioni dello stato dello pseudo-random number generator (RNG) di NumPy e PyTorch tra fold consecutivi, la Cross-Validation è stata eseguita forzando l'isolamento della memoria multiprocesso tramite backend \texttt{loky} in \texttt{fold\_worker.py}.
@@ -671,21 +641,21 @@ La validità interna riguarda la stabilità metodologica ed il rigore causale de
     \item \textbf{Validazione Multi-Seed:} L'impatto dell'inizializzazione casuale dei pesi neurali è stato neutralizzato ripetendo le valutazioni su 5 seed stocastici indipendenti ($42, 123, 456, 789, 999$), verificando che i miglioramenti ottenuti non fossero il risultato di uno split o un'inizializzazione fortuita (\textit{lucky seed}).
 \end{itemize}
 
-\subsubsection{Validità Esterna}
+\subsubsection{Validità esterna}
 La validità esterna concerne la generalizzabilità delle conclusioni tratte dai dati ad altri contesti di sviluppo software:
 \begin{itemize}
     \item \textbf{Rappresentatività dei Dataset Benchmark:} L'indagine si è basata sui 5 dataset storici pubblici accreditati nella letteratura SDEE (\textit{China}, \textit{COCOMO-81}, \textit{Albrecht}, \textit{Desharnais}, \textit{Maxwell}). Sebbene tali dati rappresentino baseline di riferimento consolidate, essi riflettono principalmente progetti sviluppati con metodologie tradizionali o semi-strutturate.
     \item \textbf{Generalizzabilità a Metodologie Moderne:} I risultati potrebbero non trasferirsi direttamente senza ricalibrazione a contesti industriali moderni basati su architetture a microservizi, sviluppo Agile ad altissima frequenza di release, o infrastrutture Cloud-Native.
 \end{itemize}
 
-\subsubsection{Validità di Costrutto}
+\subsubsection{Validità di costrutto}
 La validità di costrutto analizza se le metriche impiegate misurino effettivamente il fenomeno di interesse in modo non distorto:
 \begin{itemize}
     \item \textbf{Dicotomia MAE vs.\ MedAE in Presenza di Outlier:} Nei dati di effort software, distribuzioni fortemente asimmetriche ed outlier estremi (es.\ il progetto da $54620.0$ ore su \textit{China} ed il progetto da $11400.0$ mesi-uomo su \textit{COCOMO-81}) falsano il valore medio del MAE e dell'RMSE.
-    \item \textbf{Suite di Valutazione Multi-Metrica:} Per mitigare tale bias, l'efficacia del modello è stata valutata combinando metriche aggregate ($\text{MAE}$), metriche di tendenza centrale robuste ($\text{MedAE}$), indici standardizzati rispetto alla stima casuale ($\text{Standardized Accuracy - SA}$) e test statistici d'effetto ($\text{Effect Size } \Delta$ di Vargha-Delaney e test di Wilcoxon).
+    \item \textbf{Suite di valutazione Multi-Metrica:} Per mitigare tale bias, l'efficacia del modello è stata valutata combinando metriche aggregate ($\text{MAE}$), metriche di tendenza centrale robuste ($\text{MedAE}$), indici standardizzati rispetto alla stima casuale ($\text{Standardized Accuracy - SA}$) e test statistici d'effetto ($\text{Effect Size } \Delta$ di Vargha-Delaney e test di Wilcoxon).
 \end{itemize}
 
-\section{Valutazione della Complessità e Bilanciamento dei Benefici}\label{sec:complessita}
+\section{Valutazione della complessità e bilanciamento dei benefici}\label{sec:complessita}
 Un aspetto centrale nella scelta di un modello di \textit{Software Development Effort Estimation} in ambito industriale riguarda il bilanciamento tra la complessità architetturale/operazionale ed i benefici ottenuti in termini di accuratezza predittiva.
 
 Sebbene in letteratura scientifica esistano modelli teoricamente più complessi
@@ -696,15 +666,15 @@ rappresenta il \textbf{punto di equilibrio ideale (sweet spot) tra complessità
     computazionale e benefici predittivi}:
 
 \begin{itemize}
-    \item \textbf{Compromesso Architetturale Ottimale:} A differenza dei semplici predittori lineari (SLR), la trasformazione fuzzy cattura le relazioni non lineari tra le caratteristiche dei progetti senza richiedere l'addestramento di modelli massivi a miliardi di parametri.
-    \item \textbf{Efficienza Operativa ed Inferenza Istantanea:} Sebbene l'addestramento richieda la clusterizzazione FCM ed il tuning iperparametrico, la fase di inferenza del modello ottimizzato impiega meno di $5\text{ ms}$ per valutare un nuovo progetto software, rendendo l'impiego operativo assolutamente fluido.
-    \item \textbf{Massimizzazione del Beneficio Predittivo:} A fronte di una complessità di calcolo del tutto sostenibile, il modello ottiene l'abbattimento dell'errore mediano ($\text{MedAE} = 277.91$ su China e $71.24$ su COCOMO-81, con significatività $p < 0.002$), dimostrando che l'approccio fuzzy bilancia in modo ottimale lo sforzo computazionale con la precisione della stima.
+    \item \textbf{Compromesso architetturale ottimale:} A differenza dei semplici predittori lineari (SLR), la trasformazione fuzzy cattura le relazioni non lineari tra le caratteristiche dei progetti senza richiedere l'addestramento di modelli massivi a miliardi di parametri.
+    \item \textbf{Efficienza operativa ed inferenza istantanea:} Sebbene l'addestramento richieda la clusterizzazione FCM ed il tuning iperparametrico, la fase di inferenza del modello ottimizzato impiega meno di $5\text{ ms}$ per valutare un nuovo progetto software, rendendo l'impiego operativo assolutamente fluido.
+    \item \textbf{Massimizzazione del beneficio predittivo:} A fronte di una complessità di calcolo del tutto sostenibile, il modello ottiene l'abbattimento dell'errore mediano ($\text{MedAE} = 277.91$ su China e $71.24$ su COCOMO-81, con significatività $p < 0.002$), dimostrando che l'approccio fuzzy bilancia in modo ottimale lo sforzo computazionale con la precisione della stima.
 \end{itemize}
 
-\section{Sviluppo del Prototipo Web per l'Effort Estimation}\label{sec:prototipo}
+\section{Sviluppo del prototipo Web per l'Effort Estimation}\label{sec:prototipo}
 A completamento del lavoro svolto, è stata progettata e realizzata un'applicazione web prototipale interattiva fornita nel file \texttt{app.py}, finalizzata al supporto decisionale operativo per i Project Manager.
 
-\subsection{Architettura del Sistema Web}
+\subsection{Architettura dell'applicazione web}
 L'applicazione è sviluppata in Python utilizzando il framework Flask.
 L'architettura software segue il pattern Model-View-Controller (MVC) ed è organizzata come illustrato nel diagramma in Figura~\ref{fig:architettura_web}:
 
@@ -742,7 +712,7 @@ L'architettura software segue il pattern Model-View-Controller (MVC) ed è organ
     \item \texttt{templates/index.html}: interfaccia utente responsive sviluppata in HTML5, CSS3 e JavaScript. Integra la libreria Chart.js per la generazione dinamica di grafici comparativi ed istogrammi dello sforzo.
 \end{itemize}
 
-\subsection{Interfaccia Utente e Predizione Comparativa in Tempo Reale}
+\subsection{Interfaccia utente e predizione comparativa in tempo reale}
 L'utente immette i parametri caratteristici del progetto software da stimare (conteggi di Input Esterni, Output Esterni, Inchieste, File Logici Interni ed Interfacce Esterne). All'invio del modulo, il sistema esegue in parallelo:
 \begin{enumerate}
     \item Il calcolo delle dimensioni funzionali approssimate HLFPA, IFPA e Standard FP ed i relativi valori di sforzo stimati tramite i modelli di Regressione Lineare Semplice.
@@ -750,7 +720,7 @@ L'utente immette i parametri caratteristici del progetto software da stimare (co
 \end{enumerate}
 I risultati vengono restituiti in formato JSON con una latenza complessiva inferiore ai \textbf{5 millisecondi}, alimentando istantaneamente tabelle di sintesi e grafici comparativi dinamici che permettono al Project Manager di confrontare visivamente l'intervallo di confidenza dello sforzo predetto dai differenti approcci.
 
-\section{Considerazioni Conclusive e Sviluppi Futuri}\label{sec:conclusioni}
+\section{Considerazioni conclusive e Sviluppi futuri}\label{sec:conclusioni}
 In questo lavoro è stata condotta un'analisi approfondita dello stato dell'arte delle tecniche di Software Development Effort Estimation, affiancata da una sostanziale campagna di sperimentazione ed ottimizzazione empirica del modello Fuzzy-DCNN.
 
 I contributi principali si sintetizzano in:
@@ -764,7 +734,7 @@ I contributi principali si sintetizzano in:
 
 Tra i principali sviluppi futuri si individuano:
 \begin{enumerate}
-    \item \textbf{Esecuzione di un Benchmark Sperimentale Diretto sul Dataset di Di Martino et al.:} Acquisire o replicare l'accesso ad un dataset industriale di applicazioni Web misurate in FPA/COSMIC (analogo a quello delle 25 applicazioni industriali di Di Martino et al.) per eseguire un confronto sperimentale diretto testa-a-testa tra predittori SLR e la rete F-DCNN ottimizzata.
+    \item \textbf{Esecuzione di un Benchmark sperimentale diretto sul Dataset di Di Martino et al.:} Acquisire o replicare l'accesso ad un dataset industriale di applicazioni Web misurate in FPA/COSMIC (analogo a quello delle 25 applicazioni industriali di Di Martino et al.) per eseguire un confronto sperimentale diretto testa-a-testa tra predittori SLR e la rete F-DCNN ottimizzata.
     \item \textbf{Pipeline Ibrida LLM--FDCNN:} Integrazione di modelli di intelligenza artificiale generativa (Large Language Models) nella fase di preprocessing, affidando all'LLM l'estrazione automatica delle feature funzionali dai documenti di requisiti in linguaggio naturale e fornendo tali feature in input alla rete F-DCNN per un'inferenza istantanea e deterministica.
 \end{enumerate}
 
