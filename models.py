@@ -22,11 +22,17 @@ class ModelManager:
         self.meta = joblib.load(meta_path)
         
         self.dcnn_model = EffortEstimator(
-            self.meta['n_features'], 
-            self.meta['n_clusters'], 
-            lr=1e-3, batch_size=16, epochs=1, weight_decay=1e-3,
+            m_features=self.meta['n_features'], 
+            k_clusters=self.meta['n_clusters'], 
+            lr=1e-3, batch_size=16, epochs=1, weight_decay=0.0,
             target_min=self.meta['target_min'],
             target_range=self.meta['target_range'],
+            target_mean=self.meta.get('target_mean', 0.0),
+            num_filters=self.meta.get('num_filters', 16),
+            dropout_rate=self.meta.get('dropout_rate', 0.2),
+            loss_type=self.meta.get('loss_type', 'rmse'),
+            huber_delta=self.meta.get('huber_delta', 0.1),
+            activation_type=self.meta.get('activation_type', 'linear_clip'),
             device="cuda" if torch.cuda.is_available() else "cpu"
         )
         self.dcnn_model.model.load_state_dict(torch.load(os.path.join(self.models_dir, "dcnn.pth")))
@@ -58,7 +64,7 @@ class ModelManager:
                 d_rj = self.meta['deltas'][r, j]
                 mu[j, r] = np.exp(- ((sample_scaled[j] - c_rj) ** 2) / (2.0 * d_rj**2))
                 
-        pred_scaled = self.dcnn_model.predict(mu)
+        pred_scaled = self.dcnn_model.predict(np.expand_dims(mu, axis=0))
         pred = (pred_scaled * self.meta['target_range']) + self.meta['target_min']
         if self.meta.get('use_log_target', False):
             pred = np.expm1(pred)
@@ -88,7 +94,7 @@ class ModelManager:
                 d_rj = self.meta['deltas'][r, j]
                 mu[j, r] = np.exp(- ((sample_scaled[j] - c_rj) ** 2) / (2.0 * d_rj**2))
 
-        pred_scaled = self.dcnn_model.predict(mu)
+        pred_scaled = self.dcnn_model.predict(np.expand_dims(mu, axis=0))
         pred = (pred_scaled * self.meta['target_range']) + self.meta['target_min']
         if self.meta.get('use_log_target', False):
             pred = np.expm1(pred)

@@ -17,36 +17,59 @@ def train_and_save():
     print("Loading dataset...")
     dataset_path = 'Software-estimation-datasets/china.arff'
     target_column = 'Effort'
-    dataset = Dataset(dataset_path, target_column_name=target_column)
+    dataset = Dataset(dataset_path, target_column_name=target_column, use_log_target=True)
 
     print("Training Fuzzy C-Means...")
     n_clusters = 5
-    fuzzy_cmeans = FuzzyCMeans(dataset, num_clusters=n_clusters, m=2.0, distance_metric='euclidean')
+    fuzzy_cmeans = FuzzyCMeans(dataset, num_clusters=n_clusters, m=2.0)
     mu_train = fuzzy_cmeans.fit_transform()
 
-    print("Training DCNN Regressor with MRE Loss & Early Stopping...")
+    print("Training DCNN Regressor with Huber Loss...")
     n_features = mu_train.shape[1]
+    target_mean_scaled = float(dataset.training_target_scaled.mean())
+
+    num_filters = 32
+    dropout_rate = 0.1
+    loss_type = 'huber'
+    huber_delta = 0.01
+    lr = 1e-3
+    epochs = 200
+    batch_size = 16
+    weight_decay = 0.0
+    activation_type = 'linear_clip'
+
     effort_estimator = EffortEstimator(
-        n_features, n_clusters, 
-        lr=1e-3, 
-        batch_size=16, 
-        epochs=150, 
-        weight_decay=1e-3,
+        m_features=n_features,
+        k_clusters=n_clusters,
+        lr=lr,
+        batch_size=batch_size,
+        epochs=epochs,
+        weight_decay=weight_decay,
         target_min=dataset.target_min,
         target_range=dataset.target_range,
-        loss_type='mre',
-        use_log_target=dataset.use_log_target,
+        target_mean=target_mean_scaled,
+        num_filters=num_filters,
+        dropout_rate=dropout_rate,
+        loss_type=loss_type,
+        huber_delta=huber_delta,
+        activation_type=activation_type,
         device="cuda" if torch.cuda.is_available() else "cpu"
     )
-    effort_estimator.fit(mu_train, dataset.training_target_scaled, verbose=True, patience=25, val_ratio=0.15)
+    effort_estimator.fit(mu_train, dataset.training_target_scaled.values)
 
     print("Evaluating DCNN...")
     mu_test = fuzzy_cmeans.transform(dataset.testing_data)
-    dcnn_mae, dcnn_rmse, _, dcnn_mmre, _, dcnn_pred25 = effort_estimator.evaluate(
-        mu_test,
-        dataset.testing_target_scaled,
-        inverse_transform=dataset.inverse_transform_target
-    )
+    pred_scaled = effort_estimator.predict(mu_test)
+    pred_unscaled = dataset.inverse_transform_target(pred_scaled)
+    y_test_unscaled = dataset.testing_target_unscaled.values
+
+    dcnn_mae = float(mean_absolute_error(y_test_unscaled, pred_unscaled))
+    dcnn_rmse = float(np.sqrt(mean_squared_error(y_test_unscaled, pred_unscaled)))
+    abs_errors = np.abs(y_test_unscaled - pred_unscaled)
+    mre = abs_errors / np.maximum(y_test_unscaled, 1e-6)
+    dcnn_mmre = float(np.mean(mre))
+    dcnn_pred25 = float(np.mean(mre <= 0.25) * 100.0)
+
     print(f"DCNN Test MAE: {dcnn_mae:.2f}, RMSE: {dcnn_rmse:.2f}, MMRE: {dcnn_mmre:.4f}, Pred(25): {dcnn_pred25:.2f}%")
 
     print("Training Linear Regression...")
@@ -97,6 +120,12 @@ def train_and_save():
         'feature_max': dataset.feature_max,
         'target_min': dataset.target_min,
         'target_range': dataset.target_range,
+        'target_mean': target_mean_scaled,
+        'num_filters': num_filters,
+        'dropout_rate': dropout_rate,
+        'loss_type': loss_type,
+        'huber_delta': huber_delta,
+        'activation_type': activation_type,
         'use_log_target': dataset.use_log_target,
         'lin_reg': lin_reg,
         'columns': dataset.data.columns,
