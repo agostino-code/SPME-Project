@@ -22,6 +22,7 @@ N_RANDOM_BASELINE_RUNS = 1000   # numero di permutazioni casuali usate per stima
 MAX_FUZZY_CLUSTERS = 10         # limite superiore per la ricerca del k ottimale
 
 CHINA_KFOLD_SPLITS = 10         # China usa 10-fold invece di LOOCV
+SAVE_DETAILED_CSV = False       # Disabilita la creazione dei CSV dettagliati di default
 
 # Optimal hyperparameter configurations per dataset (empirically derived from SOTA test suite)
 DATASET_BEST_PARAMS = {
@@ -136,7 +137,8 @@ def compute_metrics(actual, predicted):
 # --------------------------------------------------------------------------- #
 
 def run_loocv(dataset_path: str, use_knn_imputation: bool = False,
-              seed: int = None, n_jobs: int = None, params_override: dict = None):
+              seed: int = None, n_jobs: int = None, params_override: dict = None,
+              save_csv: bool = SAVE_DETAILED_CSV):
     """
     Esegue la validazione completa (LOOCV, o 10-fold per China) su un dataset
     applicando i parametri ottimali specifici del dataset.
@@ -209,20 +211,22 @@ def run_loocv(dataset_path: str, use_knn_imputation: bool = False,
 
     mae, medae, sa, delta = compute_metrics(actuals, predictions)
 
-    df_results = pd.DataFrame({
-        'fold_index': fold_indices,
-        'actual': actuals,
-        'predicted': predictions,
-    })
-    df_results['abs_error'] = np.abs(df_results['actual'] - df_results['predicted'])
-    df_results['squared_error'] = df_results['abs_error'] ** 2
+    csv_filename = None
+    if save_csv:
+        df_results = pd.DataFrame({
+            'fold_index': fold_indices,
+            'actual': actuals,
+            'predicted': predictions,
+        })
+        df_results['abs_error'] = np.abs(df_results['actual'] - df_results['predicted'])
+        df_results['squared_error'] = df_results['abs_error'] ** 2
 
-    ds_name_no_ext = os.path.splitext(os.path.basename(dataset_path))[0]
-    config_str = f"FDCNN_{loss_type}_k{cluster_method}_seed{model_seed}"
-    csv_filename = f"results_per_fold_{ds_name_no_ext}__{config_str}.csv"
-    
-    df_results.to_csv(csv_filename, index=False)
-    print(f"Saved per-fold results to {csv_filename}")
+        ds_name_no_ext = os.path.splitext(os.path.basename(dataset_path))[0]
+        config_str = f"FDCNN_{loss_type}_k{cluster_method}_seed{model_seed}"
+        csv_filename = f"results_per_fold_{ds_name_no_ext}__{config_str}.csv"
+        
+        df_results.to_csv(csv_filename, index=False)
+        print(f"Saved per-fold results to {csv_filename}")
 
     print(f"Results for {os.path.basename(dataset_path)}:")
     print(f"MAE:   {mae:.4f}")
