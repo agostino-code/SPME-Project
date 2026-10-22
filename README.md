@@ -5,7 +5,6 @@
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.2+-ee4c2c.svg)](https://pytorch.org/)
 [![Flask](https://img.shields.io/badge/Flask-3.0+-green.svg)](https://flask.palletsprojects.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Validation](https://img.shields.io/badge/Validation-LOOCV%20%2F%2010--Fold-orange.svg)](#validation--test-suite)
 
 > 📖 **Disponibile anche in lingua italiana:** Per consultare la documentazione completa in italiano, visualizza [README_IT.md](README_IT.md).
 
