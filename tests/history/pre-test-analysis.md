@@ -76,7 +76,7 @@ Per contenere la dominanza degli outlier senza distorcere i gradienti:
 ### 3.3 Problema Critico di Riproducibilità e Fix di Joblib
 Durante la parallelizzazione dei fold con `joblib`, è emerso che `ThreadingBackend` condivideva lo stato RNG globale di NumPy e PyTorch tra i thread, rendendo i run non deterministici.
 
-* **Fix:** Isolamento della logica di fold nel modulo importabile [`fold_worker.py`](fuzzy-DCNN-implementation/fold_worker.py) e forzatura del `backend='loky'` (multiprocesso).
+* **Fix:** Isolamento della logica di fold nel modulo importabile [`fold_worker.py`](../../fuzzy-DCNN-implementation/fold_worker.py) e forzatura del `backend='loky'` (multiprocesso).
 * **Esito:** Ottenuto il determinismo bit-a-bit su run consecutivi.
 
 ### 3.4 Risultati e Rilevamento sulla MedAE

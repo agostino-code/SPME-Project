@@ -1,11 +1,66 @@
-__pycache__
-.*
-!.python-version
-AGENTS.md
-PLAN.md
-uv.lock
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
 
-# latex
+# C/C++ builds / binaries
+*.so
+*.dylib
+*.dll
+
+# Virtual Environments
+.venv/
+venv/
+ENV/
+env/
+env.bak/
+venv.bak/
+
+# Environment variables & secrets
+.env
+.env.*
+!.env.example
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Python / Packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Testing & Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Local diagnostic / recovery
+.dsh-acl-recovery/
+
+# LaTeX build artifacts
+tesi/*.aux
+tesi/*.fdb_latexmk
+tesi/*.fls
+tesi/*.log
+tesi/*.out
+tesi/*.synctex.gz
+tesi/*.bbl
+tesi/*.blg
+tesi/*.toc
+tesi/*.lof
+tesi/*.lot
+tesi/*.nav
+tesi/*.snm
+tesi/*.vrb
 *.aux
 *.fdb_latexmk
 *.fls
@@ -14,3 +69,7 @@ uv.lock
 *.synctex.gz
 *.bbl
 *.blg
+
+# Local agent scratchpads
+AGENTS.md
+uv.lock
