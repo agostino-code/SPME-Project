@@ -113,7 +113,8 @@ where $c_{rj}$ is the cluster center and $d_{rj}$ is the weighted standard devia
 
 The project features a modern, production-grade **Flask** web application equipped with a Glassmorphism UI:
 
-- **Guided Parameter Input:** Input fields for Function Point counters (Input, Output, Enquiry, File, Interface, Added, Changed, Deleted).
+- **Guided Parameter Input:** Input fields for Function Point counters (Input, Output, Enquiry, File, Interface).
+- **Toggleable Maintenance Allocation (%):** Configurable percentage breakdown for Added (%), Changed (%), and Deleted (%) relative to total functional size (UFP), with live FP recalculation and quick toggle switch to disable.
 - **Realistic Project Scale Presets:** Instant loading for typical contract sizes (*Small*, *Medium*, *Large*, *Mega / PNRR*).
 - **Team Productivity Profiles (PDR):** Configurable team delivery rates mathematically derived from the quartiles of the 499 historical projects in the China/ISBSG repository ($\text{PDR} = \text{Effort} / \text{AFP}$ in person-hours/FP):
   - **4.5 h/FP ($Q_{25} = 4.3$):** 1st quartile, top 25% highest delivery velocity (agile teams, high component re-use).
@@ -338,6 +339,12 @@ The repository contains the complete academic deliverables:
 4. **Kaushik, A., et al. (2024).** *SENSE: Software Effort Estimation using Novel Stacking Ensemble Learning.*
 5. **Alhumam, A. (2025).** *Software Cost Estimation Using TabNet and Harris Hawks Optimization.*
 6. **Hoc, N. T., et al. (2023).** *Comparing Stacking Ensemble and Deep Learning for Software Project Effort Estimation.*
+
+---
+
+## Authors & Credits
+
+Developed by **Agostino Cesarano** and **Fabrizio Apuzzo**.
 
 ---
 

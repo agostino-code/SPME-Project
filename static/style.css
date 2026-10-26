@@ -221,6 +221,13 @@ h2::before {
     padding-top: 1.2rem;
 }
 
+.form-section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.9rem;
+}
+
 .form-section-title {
     font-family: 'Outfit', sans-serif;
     font-size: 0.82rem;
@@ -229,6 +236,113 @@ h2::before {
     margin-bottom: 0.9rem;
     text-transform: uppercase;
     letter-spacing: 0.5px;
+}
+
+.form-section-header .form-section-title {
+    margin-bottom: 0;
+}
+
+/* ---------- Toggle Control ---------- */
+.toggle-control {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    cursor: pointer;
+    user-select: none;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+}
+
+.toggle-control input[type="checkbox"] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+}
+
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 36px;
+    height: 20px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--card-border);
+    border-radius: 20px;
+    transition: all var(--transition);
+}
+
+.toggle-switch::before {
+    content: '';
+    position: absolute;
+    height: 14px;
+    width: 14px;
+    left: 2px;
+    bottom: 2px;
+    background: var(--text-muted);
+    border-radius: 50%;
+    transition: all var(--transition);
+}
+
+.toggle-control input[type="checkbox"]:checked + .toggle-switch {
+    background: var(--accent);
+    border-color: var(--accent);
+    box-shadow: 0 0 10px var(--accent-glow);
+}
+
+.toggle-control input[type="checkbox"]:checked + .toggle-switch::before {
+    transform: translateX(16px);
+    background: #ffffff;
+}
+
+.toggle-text {
+    font-size: 0.76rem;
+    font-weight: 600;
+    transition: color var(--transition);
+}
+
+/* ---------- Maintenance Fields & Percentage Units ---------- */
+.maint-fields-container {
+    animation: fadeIn 0.3s ease;
+}
+
+.maint-description {
+    font-size: 0.74rem;
+    color: var(--text-muted);
+    margin-bottom: 0.8rem;
+    line-height: 1.4;
+}
+
+.input-with-unit {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.input-with-unit input {
+    padding-right: 2.2rem !important;
+}
+
+.input-unit {
+    position: absolute;
+    right: 0.85rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-dim);
+    pointer-events: none;
+}
+
+.maint-summary-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 0.75rem;
+    padding: 0.45rem 0.8rem;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius-sm);
+    font-size: 0.74rem;
+    color: var(--text-muted);
 }
 
 .input-group {
@@ -728,12 +842,21 @@ h2::before {
 footer {
     padding: 1.6rem 2rem;
     text-align: center;
-    font-size: 0.72rem;
+    font-size: 0.74rem;
     color: var(--text-dim);
     border-top: 1px solid var(--card-border);
     margin-top: auto;
     background: rgba(8, 10, 18, 0.5);
     backdrop-filter: blur(10px);
+}
+
+footer p {
+    margin: 0.15rem 0;
+}
+
+footer strong {
+    color: var(--text-color);
+    font-weight: 600;
 }
 
 /* ==========================================================================

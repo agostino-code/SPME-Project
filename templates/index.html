@@ -60,40 +60,63 @@
                     <div class="form-grid">
                         <div class="input-group">
                             <label for="Input">External Inputs (EI) <span>Inserimento dati</span></label>
-                            <input type="number" id="Input" min="0" value="0" required>
+                            <input type="number" id="Input" min="0" value="0" required oninput="updateMaintenanceCalculations()">
                         </div>
                         <div class="input-group">
                             <label for="Output">External Outputs (EO) <span>Report / Export</span></label>
-                            <input type="number" id="Output" min="0" value="0" required>
+                            <input type="number" id="Output" min="0" value="0" required oninput="updateMaintenanceCalculations()">
                         </div>
                         <div class="input-group">
                             <label for="Enquiry">External Enquiries (EQ) <span>Interrogazioni</span></label>
-                            <input type="number" id="Enquiry" min="0" value="0" required>
+                            <input type="number" id="Enquiry" min="0" value="0" required oninput="updateMaintenanceCalculations()">
                         </div>
                         <div class="input-group">
                             <label for="File">Internal Logical Files (ILF) <span>Tabelle DB interne</span></label>
-                            <input type="number" id="File" min="0" value="0" required>
+                            <input type="number" id="File" min="0" value="0" required oninput="updateMaintenanceCalculations()">
                         </div>
                         <div class="input-group" style="grid-column: span 2;">
                             <label for="Interface">External Interface Files (EIF) <span>Sola lettura esterne</span></label>
-                            <input type="number" id="Interface" min="0" value="0" required>
+                            <input type="number" id="Interface" min="0" value="0" required oninput="updateMaintenanceCalculations()">
                         </div>
                     </div>
 
                     <div class="form-section">
-                        <div class="form-section-title">Metriche di Manutenzione</div>
-                        <div class="form-grid maintenance-grid">
-                            <div class="input-group">
-                                <label for="Added">Added FP</label>
-                                <input type="number" id="Added" min="0" value="0">
+                        <div class="form-section-header">
+                            <div class="form-section-title">Metriche di Manutenzione</div>
+                            <label class="toggle-control" title="Attiva o disattiva la ripartizione di manutenzione">
+                                <input type="checkbox" id="maint-toggle" onchange="toggleMaintenance(this.checked)">
+                                <span class="toggle-switch"></span>
+                                <span class="toggle-text" id="maint-toggle-label">Disattivate</span>
+                            </label>
+                        </div>
+                        <div id="maint-fields" class="maint-fields-container" style="display: none;">
+                            <p class="maint-description">Ripartizione percentuale dell'intervento rispetto ai Function Points totali (UFP):</p>
+                            <div class="form-grid maintenance-grid">
+                                <div class="input-group">
+                                    <label for="AddedPct">Added (%) <span id="added-fp-calc">≈ 0.0 FP</span></label>
+                                    <div class="input-with-unit">
+                                        <input type="number" id="AddedPct" min="0" max="100" step="1" value="70" oninput="updateMaintenanceCalculations()">
+                                        <span class="input-unit">%</span>
+                                    </div>
+                                </div>
+                                <div class="input-group">
+                                    <label for="ChangedPct">Changed (%) <span id="changed-fp-calc">≈ 0.0 FP</span></label>
+                                    <div class="input-with-unit">
+                                        <input type="number" id="ChangedPct" min="0" max="100" step="1" value="25" oninput="updateMaintenanceCalculations()">
+                                        <span class="input-unit">%</span>
+                                    </div>
+                                </div>
+                                <div class="input-group">
+                                    <label for="DeletedPct">Deleted (%) <span id="deleted-fp-calc">≈ 0.0 FP</span></label>
+                                    <div class="input-with-unit">
+                                        <input type="number" id="DeletedPct" min="0" max="100" step="1" value="5" oninput="updateMaintenanceCalculations()">
+                                        <span class="input-unit">%</span>
+                                    </div>
+                                </div>
                             </div>
-                            <div class="input-group">
-                                <label for="Changed">Changed FP</label>
-                                <input type="number" id="Changed" min="0" value="0">
-                            </div>
-                            <div class="input-group">
-                                <label for="Deleted">Deleted FP</label>
-                                <input type="number" id="Deleted" min="0" value="0">
+                            <div class="maint-summary-row">
+                                <span>Totale percentuale: <strong id="maint-total-pct">100%</strong></span>
+                                <span id="maint-total-fp">(su 0 UFP totali)</span>
                             </div>
                         </div>
                     </div>
@@ -260,7 +283,8 @@
     </main>
 
     <footer>
-        <p>Di Martino et al. (SLR) · Azzeh et al. (F-DCNN)</p>
+        <p>Software Effort &amp; Cost Estimator &middot; Autori: <strong>Agostino Cesarano</strong> e <strong>Fabrizio Apuzzo</strong></p>
+        <p style="font-size: 0.72rem; color: var(--text-dim); margin-top: 0.35rem;">Riferimenti scientifici: Di Martino et al. (SLR) &middot; Azzeh et al. (Fuzzy-DCNN)</p>
     </footer>
 
     <script>
@@ -283,6 +307,68 @@
     })();
 
     /* =================================================================
+       MAINTENANCE METRICS & PERCENTAGES LOGIC
+       ================================================================= */
+    function getUFP() {
+        const ei = parseFloat(document.getElementById('Input').value) || 0;
+        const eo = parseFloat(document.getElementById('Output').value) || 0;
+        const eq = parseFloat(document.getElementById('Enquiry').value) || 0;
+        const ilf = parseFloat(document.getElementById('File').value) || 0;
+        const eif = parseFloat(document.getElementById('Interface').value) || 0;
+        return Math.max(0, ei + eo + eq + ilf + eif);
+    }
+
+    function toggleMaintenance(enabled) {
+        const fields = document.getElementById('maint-fields');
+        const label = document.getElementById('maint-toggle-label');
+        if (enabled) {
+            fields.style.display = 'block';
+            label.textContent = 'Attive';
+            label.style.color = 'var(--primary)';
+            updateMaintenanceCalculations();
+        } else {
+            fields.style.display = 'none';
+            label.textContent = 'Disattivate';
+            label.style.color = 'var(--text-muted)';
+        }
+    }
+
+    function updateMaintenanceCalculations() {
+        const ufp = getUFP();
+        const addPct = parseFloat(document.getElementById('AddedPct').value) || 0;
+        const chgPct = parseFloat(document.getElementById('ChangedPct').value) || 0;
+        const delPct = parseFloat(document.getElementById('DeletedPct').value) || 0;
+
+        const addFP = ufp * (addPct / 100);
+        const chgFP = ufp * (chgPct / 100);
+        const delFP = ufp * (delPct / 100);
+
+        const addCalc = document.getElementById('added-fp-calc');
+        const chgCalc = document.getElementById('changed-fp-calc');
+        const delCalc = document.getElementById('deleted-fp-calc');
+        if (addCalc) addCalc.textContent = `≈ ${addFP.toFixed(1)} FP`;
+        if (chgCalc) chgCalc.textContent = `≈ ${chgFP.toFixed(1)} FP`;
+        if (delCalc) delCalc.textContent = `≈ ${delFP.toFixed(1)} FP`;
+
+        const totalPct = addPct + chgPct + delPct;
+        const totalEl = document.getElementById('maint-total-pct');
+        const totalFpEl = document.getElementById('maint-total-fp');
+        if (totalEl) {
+            totalEl.textContent = `${totalPct.toFixed(0)}%`;
+            if (totalPct === 100) {
+                totalEl.style.color = 'var(--success)';
+            } else if (totalPct > 100) {
+                totalEl.style.color = 'var(--danger)';
+            } else {
+                totalEl.style.color = 'var(--warning)';
+            }
+        }
+        if (totalFpEl) {
+            totalFpEl.textContent = `(su ${ufp.toFixed(0)} UFP totali)`;
+        }
+    }
+
+    /* =================================================================
        PDR PROFILE LOGIC
        ================================================================= */
     function updatePDRFromProfile() {
@@ -302,37 +388,26 @@
             document.getElementById('Enquiry').value = 3;
             document.getElementById('File').value = 2;
             document.getElementById('Interface').value = 0;
-            document.getElementById('Added').value = 0;
-            document.getElementById('Changed').value = 0;
-            document.getElementById('Deleted').value = 0;
         } else if (type === 'medium') {
             document.getElementById('Input').value = 75;
             document.getElementById('Output').value = 30;
             document.getElementById('Enquiry').value = 25;
             document.getElementById('File').value = 14;
             document.getElementById('Interface').value = 4;
-            document.getElementById('Added').value = 0;
-            document.getElementById('Changed').value = 0;
-            document.getElementById('Deleted').value = 0;
         } else if (type === 'large') {
             document.getElementById('Input').value = 350;
             document.getElementById('Output').value = 180;
             document.getElementById('Enquiry').value = 120;
             document.getElementById('File').value = 65;
             document.getElementById('Interface').value = 20;
-            document.getElementById('Added').value = 0;
-            document.getElementById('Changed').value = 0;
-            document.getElementById('Deleted').value = 0;
         } else if (type === 'mega') {
             document.getElementById('Input').value = 1000;
             document.getElementById('Output').value = 450;
             document.getElementById('Enquiry').value = 500;
             document.getElementById('File').value = 200;
             document.getElementById('Interface').value = 50;
-            document.getElementById('Added').value = 0;
-            document.getElementById('Changed').value = 0;
-            document.getElementById('Deleted').value = 0;
         }
+        updateMaintenanceCalculations();
     }
 
     /* =================================================================
@@ -358,15 +433,30 @@
         btnLoader.style.display = 'block';
         errorBox.style.display = 'none';
 
+        const isMaintEnabled = document.getElementById('maint-toggle').checked;
+        let addedFP = 0;
+        let changedFP = 0;
+        let deletedFP = 0;
+
+        if (isMaintEnabled) {
+            const ufp = getUFP();
+            const addPct = parseFloat(document.getElementById('AddedPct').value) || 0;
+            const chgPct = parseFloat(document.getElementById('ChangedPct').value) || 0;
+            const delPct = parseFloat(document.getElementById('DeletedPct').value) || 0;
+            addedFP = ufp * (addPct / 100);
+            changedFP = ufp * (chgPct / 100);
+            deletedFP = ufp * (delPct / 100);
+        }
+
         const payload = {
             File: document.getElementById('File').value,
             Interface: document.getElementById('Interface').value,
             Input: document.getElementById('Input').value,
             Output: document.getElementById('Output').value,
             Enquiry: document.getElementById('Enquiry').value,
-            Added: document.getElementById('Added').value,
-            Changed: document.getElementById('Changed').value,
-            Deleted: document.getElementById('Deleted').value,
+            Added: addedFP,
+            Changed: changedFP,
+            Deleted: deletedFP,
             PDR: document.getElementById('PDR').value,
             HourlyRate: document.getElementById('HourlyRate').value
         };
@@ -431,6 +521,9 @@
             btnLoader.style.display = 'none';
         }
     });
+
+    // Initialize maintenance calculation on page load
+    updateMaintenanceCalculations();
     </script>
 
 </body>

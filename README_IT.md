@@ -113,7 +113,8 @@ La matrice risultante $\mu \in \mathbb{R}^{M \times K}$ mappa il livello di ades
 
 La repository include una Web Application completa e pronta all'uso sviluppata con **Flask**, che consente a project manager e ricercatori di stimare l'effort in tempo reale:
 
-- **Input Guidato:** Inserimento delle metriche di Function Points (Input, Output, Enquiry, File, Interface, Added, Changed, Deleted).
+- **Input Guidato:** Inserimento delle metriche di Function Points (Input, Output, Enquiry, File, Interface).
+- **Ripartizione di Manutenzione in Percentuale (%):** Configurazione percentuale opzionale per funzionalità Aggiunte (%), Modificate (%) ed Eliminate (%) rispetto alla dimensione funzionale totale (UFP), con ricalcolo real-time dei Function Point e interruttore per disattivarle.
 - **Preset di Progetto:** Configurazioni rapide basate su tipologie reali di commessa (*Piccolo*, *Medio*, *Grande*, *Mega / PNRR*).
 - **Profili di Produttività del Team (PDR):** Tasso di consegna stimato derivato matematicamente dai quartili della distribuzione dei 499 progetti storici del dataset China/ISBSG ($\text{PDR} = \text{Effort} / \text{AFP}$ in ore-persona/FP):
   - **4,5 h/FP ($Q_{25} = 4,3$):** 1° quartile, identifica il 25% dei progetti con la più alta velocità di consegna (team agile, elevato riuso o componenti modulari).
@@ -339,6 +340,12 @@ Il progetto include la documentazione accademica completa:
 4. **Kaushik, A., et al. (2024).** *SENSE: Software Effort Estimation using Novel Stacking Ensemble Learning.*
 5. **Alhumam, A. (2025).** *Software Cost Estimation Using TabNet and Harris Hawks Optimization.*
 6. **Hoc, N. T., et al. (2023).** *Comparing Stacking Ensemble and Deep Learning for Software Project Effort Estimation.*
+
+---
+
+## Autori
+
+Sviluppato da **Agostino Cesarano** e **Fabrizio Apuzzo**.
 
 ---
 
