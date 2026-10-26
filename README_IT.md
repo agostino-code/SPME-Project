@@ -115,7 +115,11 @@ La repository include una Web Application completa e pronta all'uso sviluppata c
 
 - **Input Guidato:** Inserimento delle metriche di Function Points (Input, Output, Enquiry, File, Interface, Added, Changed, Deleted).
 - **Preset di Progetto:** Configurazioni rapide basate su tipologie reali di commessa (*Piccolo*, *Medio*, *Grande*, *Mega / PNRR*).
-- **Profili di Produttività del Team (PDR):** Tasso di consegna stimato personalizzabile (Alta Produttività / Agile a 4,5 h/FP, Standard Enterprise a 8,1 h/FP, Requisiti Complessi / Regolamentato a 16,0 h/FP, o PDR storico aziendale personalizzato).
+- **Profili di Produttività del Team (PDR):** Tasso di consegna stimato derivato matematicamente dai quartili della distribuzione dei 499 progetti storici del dataset China/ISBSG ($\text{PDR} = \text{Effort} / \text{AFP}$ in ore-persona/FP):
+  - **4,5 h/FP ($Q_{25} = 4,3$):** 1° quartile, identifica il 25% dei progetti con la più alta velocità di consegna (team agile, elevato riuso o componenti modulari).
+  - **8,1 h/FP ($Q_{50} = 8,1$):** Mediana esatta della distribuzione storica, benchmark di riferimento per lo sviluppo enterprise standard.
+  - **16,0 h/FP ($Q_{75} = 15,4$):** 3° quartile, identifica progetti complessi, fortemente regolamentati o con pesante debito tecnico legacy.
+  - *Personalizzato:* Inserimento manuale del PDR storico consuntivo della propria organizzazione.
 - **Calcolo Economico & Mesi-Uomo:** Tariffa oraria configurabile (€/ora, default 50 €/h) con calcolo integrato di:
   - **Effort in Ore-Persona**
   - **Mesi-Uomo (PM = ore / 160)**

@@ -115,7 +115,11 @@ The project features a modern, production-grade **Flask** web application equipp
 
 - **Guided Parameter Input:** Input fields for Function Point counters (Input, Output, Enquiry, File, Interface, Added, Changed, Deleted).
 - **Realistic Project Scale Presets:** Instant loading for typical contract sizes (*Small*, *Medium*, *Large*, *Mega / PNRR*).
-- **Team Productivity Profiles (PDR):** Configurable team delivery rates (High-Productivity / Agile at 4.5 h/FP, Standard Enterprise at 8.1 h/FP, Complex / Regulated at 16.0 h/FP, or custom delivery rate).
+- **Team Productivity Profiles (PDR):** Configurable team delivery rates mathematically derived from the quartiles of the 499 historical projects in the China/ISBSG repository ($\text{PDR} = \text{Effort} / \text{AFP}$ in person-hours/FP):
+  - **4.5 h/FP ($Q_{25} = 4.3$):** 1st quartile, top 25% highest delivery velocity (agile teams, high component re-use).
+  - **8.1 h/FP ($Q_{50} = 8.1$):** Exact historical median, standard enterprise benchmark.
+  - **16.0 h/FP ($Q_{75} = 15.4$):** 3rd quartile, heavily regulated, high-complexity, or legacy maintenance projects.
+  - *Custom:* Direct input of the organization's historical empirical PDR.
 - **Economic Budgeting & Person-Months:** Configurable hourly rate (€/h, default €50/h) with automatic computation of:
   - **Effort in Person-Hours**
   - **Person-Months (PM = hours / 160)**
