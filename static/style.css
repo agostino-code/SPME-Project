@@ -210,6 +210,10 @@ h2::before {
     gap: 1.1rem;
 }
 
+.form-grid.maintenance-grid {
+    grid-template-columns: repeat(3, 1fr);
+}
+
 .form-section {
     grid-column: span 2;
     margin-top: 0.8rem;
@@ -518,6 +522,45 @@ h2::before {
     margin-left: 0.3rem;
 }
 
+.card-main-stat {
+    display: flex;
+    align-items: baseline;
+    margin-bottom: 0.6rem;
+}
+
+.card-extra-stats {
+    margin-top: 0.75rem;
+    padding-top: 0.7rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.extra-stat-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: 0.78rem;
+}
+
+.extra-stat-label {
+    color: var(--text-muted);
+}
+
+.extra-stat-val {
+    font-family: 'Outfit', sans-serif;
+    color: var(--text-color);
+    font-weight: 600;
+}
+
+.extra-stat-val.cost-val {
+    color: var(--gold);
+    font-weight: 700;
+    font-size: 0.88rem;
+    text-shadow: 0 0 12px var(--gold-glow);
+}
+
 /* ==========================================================================
    ERROR COMPARISON PANEL
    ========================================================================== */
@@ -737,7 +780,7 @@ footer {
 }
 
 @media (max-width: 600px) {
-    .form-grid {
+    .form-grid, .form-grid.maintenance-grid {
         grid-template-columns: 1fr;
     }
     .form-section {

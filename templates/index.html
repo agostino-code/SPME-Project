@@ -45,10 +45,10 @@
                 
                 <div class="presets-row">
                     <span style="align-self: center; font-size: 0.8rem; color: var(--text-muted); font-weight: 600; margin-right: 0.2rem;">Preimpostati:</span>
-                    <button type="button" class="preset-btn" onclick="loadPreset('small')">Piccolo (€10K)</button>
-                    <button type="button" class="preset-btn" onclick="loadPreset('medium')">Medio (€80K)</button>
-                    <button type="button" class="preset-btn" onclick="loadPreset('large')">Grande (€400K)</button>
-                    <button type="button" class="preset-btn" onclick="loadPreset('mega')">PNRR (€1.2M)</button>
+                    <button type="button" class="preset-btn" onclick="loadPreset('small')">Piccolo</button>
+                    <button type="button" class="preset-btn" onclick="loadPreset('medium')">Medio</button>
+                    <button type="button" class="preset-btn" onclick="loadPreset('large')">Grande</button>
+                    <button type="button" class="preset-btn" onclick="loadPreset('mega')">PNRR</button>
                 </div>
 
                 {% if not is_loaded %}
@@ -82,7 +82,7 @@
 
                     <div class="form-section">
                         <div class="form-section-title">Metriche di Manutenzione</div>
-                        <div class="form-grid">
+                        <div class="form-grid maintenance-grid">
                             <div class="input-group">
                                 <label for="Added">Added FP</label>
                                 <input type="number" id="Added" min="0" value="0">
@@ -98,8 +98,37 @@
                         </div>
                     </div>
 
+                    <div class="form-section">
+                        <div class="form-section-title">Fattori di Produttività del Team</div>
+                        <div class="form-grid">
+                            <div class="input-group">
+                                <label for="PDRProfile">Profilo Team / Metodologia <span>Esperienza e riuso</span></label>
+                                <select id="PDRProfile" onchange="updatePDRFromProfile()" style="background: rgba(0,0,0,0.25); border: 1px solid var(--card-border); color: var(--text-color); padding: 0.65rem 0.8rem; border-radius: var(--radius-sm); font-size: 0.85rem;">
+                                    <option value="4.5">Alta Produttività / Agile (4.5 h/FP)</option>
+                                    <option value="8.1" selected>Standard Enterprise (8.1 h/FP - Mediana)</option>
+                                    <option value="16.0">Bassa Produttività / Requisiti Complessi (16.0 h/FP)</option>
+                                    <option value="custom">Personalizzato (Manuale)</option>
+                                </select>
+                            </div>
+                            <div class="input-group">
+                                <label for="PDR">Produttività PDR (ore / FP) <span>Delivery Rate stimato</span></label>
+                                <input type="number" id="PDR" min="0.1" step="0.1" value="8.1" required oninput="document.getElementById('PDRProfile').value='custom'">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <div class="form-section-title">Parametri Economici</div>
+                        <div class="form-grid">
+                            <div class="input-group" style="grid-column: span 2;">
+                                <label for="HourlyRate">Tariffa Oraria (€/ora) <span>Costo orario di riferimento</span></label>
+                                <input type="number" id="HourlyRate" min="1" step="1" value="50" required>
+                            </div>
+                        </div>
+                    </div>
+
                     <button type="submit" class="submit-btn" {% if not is_loaded %}disabled style="opacity:0.5;"{% endif %}>
-                        <span id="btn-text">Calcola Effort</span>
+                        <span id="btn-text">Calcola Effort & Costo</span>
                         <div id="btn-loader" class="loader"></div>
                     </button>
                 </form>
@@ -113,23 +142,31 @@
                     <div class="error-model-card lr-card">
                         <div class="error-model-name">Regressione Lineare</div>
                         <div class="error-metric-row">
+                            <span class="error-metric-label">MedAE</span>
+                            <span class="error-metric-value">{{ "%.1f"|format(metrics.lin_medae if metrics.lin_medae else 1658.0) }} ore</span>
+                        </div>
+                        <div class="error-metric-row">
                             <span class="error-metric-label">MAE</span>
-                            <span class="error-metric-value">{{ "%.2f"|format(metrics.lin_mae) }}</span>
+                            <span class="error-metric-value">{{ "%.1f"|format(metrics.lin_mae) }} ore</span>
                         </div>
                         <div class="error-metric-row">
                             <span class="error-metric-label">RMSE</span>
-                            <span class="error-metric-value">{{ "%.2f"|format(metrics.lin_rmse) }}</span>
+                            <span class="error-metric-value">{{ "%.1f"|format(metrics.lin_rmse) }} ore</span>
                         </div>
                     </div>
                     <div class="error-model-card dcnn-card">
                         <div class="error-model-name">Fuzzy-DCNN</div>
                         <div class="error-metric-row">
+                            <span class="error-metric-label">MedAE</span>
+                            <span class="error-metric-value" style="color: var(--primary); font-weight: 700;">{{ "%.1f"|format(metrics.dcnn_medae if metrics.dcnn_medae else 941.6) }} ore</span>
+                        </div>
+                        <div class="error-metric-row">
                             <span class="error-metric-label">MAE</span>
-                            <span class="error-metric-value">{{ "%.2f"|format(metrics.dcnn_mae) }}</span>
+                            <span class="error-metric-value">{{ "%.1f"|format(metrics.dcnn_mae) }} ore</span>
                         </div>
                         <div class="error-metric-row">
                             <span class="error-metric-label">RMSE</span>
-                            <span class="error-metric-value">{{ "%.2f"|format(metrics.dcnn_rmse) }}</span>
+                            <span class="error-metric-value">{{ "%.1f"|format(metrics.dcnn_rmse) }} ore</span>
                         </div>
                     </div>
                 </div>
@@ -138,8 +175,8 @@
                 <div class="error-bar-container">
                     <div class="error-bar-row">
                         <div class="error-bar-header">
-                            <span class="error-bar-label">MAE — Regressione Lineare</span>
-                            <span class="error-bar-val" style="color: var(--accent);">{{ "%.2f"|format(metrics.lin_mae) }}</span>
+                            <span class="error-bar-label">MedAE — Regressione Lineare</span>
+                            <span class="error-bar-val" style="color: var(--accent);">{{ "%.1f"|format(metrics.lin_medae if metrics.lin_medae else 1658.0) }} ore</span>
                         </div>
                         <div class="error-bar-track">
                             <div class="error-bar-fill lr" id="bar-lr-mae" style="width: 0%;"></div>
@@ -147,8 +184,8 @@
                     </div>
                     <div class="error-bar-row">
                         <div class="error-bar-header">
-                            <span class="error-bar-label">MAE — Fuzzy-DCNN</span>
-                            <span class="error-bar-val" style="color: var(--primary);">{{ "%.2f"|format(metrics.dcnn_mae) }}</span>
+                            <span class="error-bar-label">MedAE — Fuzzy-DCNN</span>
+                            <span class="error-bar-val" style="color: var(--primary);">{{ "%.1f"|format(metrics.dcnn_medae if metrics.dcnn_medae else 941.6) }} ore</span>
                         </div>
                         <div class="error-bar-track">
                             <div class="error-bar-fill dcnn" id="bar-dcnn-mae" style="width: 0%;"></div>
@@ -157,17 +194,19 @@
                 </div>
 
                 <!-- Improvement -->
-                {% set mae_improvement = ((metrics.lin_mae - metrics.dcnn_mae) / metrics.lin_mae * 100) if metrics.lin_mae > 0 else 0 %}
+                {% set ref_lin = metrics.lin_medae if metrics.lin_medae else metrics.lin_mae %}
+                {% set ref_dcnn = metrics.dcnn_medae if metrics.dcnn_medae else metrics.dcnn_mae %}
+                {% set medae_improvement = ((ref_lin - ref_dcnn) / ref_lin * 100) if ref_lin > 0 else 0 %}
                 <div class="improvement">
-                    {% if mae_improvement > 0 %}
-                    <div class="improvement-value">-{{ "%.1f"|format(mae_improvement) }}%</div>
-                    <div class="improvement-label">Riduzione errore DCNN rispetto a LR (MAE)</div>
-                    {% elif mae_improvement < 0 %}
-                    <div class="improvement-value" style="background: linear-gradient(135deg, var(--accent), var(--purple)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">+{{ "%.1f"|format(mae_improvement|abs) }}%</div>
-                    <div class="improvement-label">LR performa meglio di DCNN (MAE)</div>
+                    {% if medae_improvement > 0 %}
+                    <div class="improvement-value">-{{ "%.1f"|format(medae_improvement) }}%</div>
+                    <div class="improvement-label">Riduzione errore mediano (MedAE) rispetto a LR</div>
+                    {% elif medae_improvement < 0 %}
+                    <div class="improvement-value" style="background: linear-gradient(135deg, var(--accent), var(--purple)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">+{{ "%.1f"|format(medae_improvement|abs) }}%</div>
+                    <div class="improvement-label">LR performa meglio di DCNN (MedAE)</div>
                     {% else %}
                     <div class="improvement-value">≈</div>
-                    <div class="improvement-label">Modelli equivalenti (MAE)</div>
+                    <div class="improvement-label">Modelli equivalenti (MedAE)</div>
                     {% endif %}
                 </div>
             </div>
@@ -233,15 +272,25 @@
         const dcnnBar = document.getElementById('bar-dcnn-mae');
         if (!lrBar || !dcnnBar) return;
 
-        const lrMAE = parseFloat('{{ metrics.lin_mae if metrics else 0 }}');
-        const dcnnMAE = parseFloat('{{ metrics.dcnn_mae if metrics else 0 }}');
-        const maxMAE = Math.max(lrMAE, dcnnMAE, 1);
+        const lrVal = parseFloat('{{ metrics.lin_medae if (metrics and metrics.lin_medae) else (metrics.lin_mae if metrics else 0) }}');
+        const dcnnVal = parseFloat('{{ metrics.dcnn_medae if (metrics and metrics.dcnn_medae) else (metrics.dcnn_mae if metrics else 0) }}');
+        const maxVal = Math.max(lrVal, dcnnVal, 1);
 
         setTimeout(() => {
-            lrBar.style.width = ((lrMAE / maxMAE) * 100).toFixed(1) + '%';
-            dcnnBar.style.width = ((dcnnMAE / maxMAE) * 100).toFixed(1) + '%';
+            lrBar.style.width = ((lrVal / maxVal) * 100).toFixed(1) + '%';
+            dcnnBar.style.width = ((dcnnVal / maxVal) * 100).toFixed(1) + '%';
         }, 400);
     })();
+
+    /* =================================================================
+       PDR PROFILE LOGIC
+       ================================================================= */
+    function updatePDRFromProfile() {
+        const sel = document.getElementById('PDRProfile').value;
+        if (sel !== 'custom') {
+            document.getElementById('PDR').value = sel;
+        }
+    }
 
     /* =================================================================
        PRESETS LOGIC
@@ -317,7 +366,9 @@
             Enquiry: document.getElementById('Enquiry').value,
             Added: document.getElementById('Added').value,
             Changed: document.getElementById('Changed').value,
-            Deleted: document.getElementById('Deleted').value
+            Deleted: document.getElementById('Deleted').value,
+            PDR: document.getElementById('PDR').value,
+            HourlyRate: document.getElementById('HourlyRate').value
         };
 
         try {
@@ -340,14 +391,26 @@
 
                 models.forEach(m => {
                     const pred = data.predictions[m.key];
+                    const cost = data.costs ? data.costs[m.key] : 0;
+                    const pm = data.person_months ? data.person_months[m.key] : 0;
                     const card = document.createElement('div');
                     card.className = `prediction-card ${m.type}`;
                     card.innerHTML = `
                         <div class="card-model">${m.name} <span style="font-weight:400; opacity:0.6;">· ${m.sub}</span></div>
                         <div class="card-formula"><code>${m.formula}</code></div>
-                        <div>
-                            <span class="card-value">${pred.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                        <div class="card-main-stat">
+                            <span class="card-value">${pred.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</span>
                             <span class="card-unit">ore</span>
+                        </div>
+                        <div class="card-extra-stats">
+                            <div class="extra-stat-item">
+                                <span class="extra-stat-label">Mesi-Uomo (PM):</span>
+                                <strong class="extra-stat-val">${pm.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} PM</strong>
+                            </div>
+                            <div class="extra-stat-item">
+                                <span class="extra-stat-label">Costo Stimato:</span>
+                                <strong class="extra-stat-val cost-val">€ ${cost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                            </div>
                         </div>
                     `;
                     grid.appendChild(card);

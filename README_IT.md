@@ -114,17 +114,17 @@ La matrice risultante $\mu \in \mathbb{R}^{M \times K}$ mappa il livello di ades
 La repository include una Web Application completa e pronta all'uso sviluppata con **Flask**, che consente a project manager e ricercatori di stimare l'effort in tempo reale:
 
 - **Input Guidato:** Inserimento delle metriche di Function Points (Input, Output, Enquiry, File, Interface, Added, Changed, Deleted).
-- **Preset di Progetto:** Configurazioni rapide basate su tipologie reali di commessa:
-  - *Piccolo (€10K)*
-  - *Medio (€80K)*
-  - *Grande (€400K)*
-  - *Mega / PNRR (€1.2M)*
+- **Preset di Progetto:** Configurazioni rapide basate su tipologie reali di commessa (*Piccolo*, *Medio*, *Grande*, *Mega / PNRR*).
+- **Profili di Produttività del Team (PDR):** Tasso di consegna stimato personalizzabile (Alta Produttività / Agile a 4,5 h/FP, Standard Enterprise a 8,1 h/FP, Requisiti Complessi / Regolamentato a 16,0 h/FP, o PDR storico aziendale personalizzato).
+- **Calcolo Economico & Mesi-Uomo:** Tariffa oraria configurabile (€/ora, default 50 €/h) con calcolo integrato di:
+  - **Effort in Ore-Persona**
+  - **Mesi-Uomo (PM = ore / 160)**
+  - **Budget Economico Stimato (€ = ore × tariffa oraria)**
 - **Stima Comparativa Simultanea:**
-  - **Fuzzy-DCNN (Nostro Modello):** Stima non-lineare basata su Deep Learning e Fuzzy Clustering.
+  - **Fuzzy-DCNN (Nostro Modello):** Stima non-lineare basata su Deep Learning e Fuzzy Clustering condizionata alla dimensione funzionale e alla produttività.
   - **M-HLFPA (Di Martino SLR):** Stima basata su High-Level Function Point Analysis ($74.9 \cdot \text{HLFPA}^{0.58}$).
   - **M-IFPA (Di Martino SLR):** Stima basata su Indicative Function Point Analysis ($539.99 \cdot \text{IFPA}^{0.272}$).
   - **M-FP (Di Martino SLR):** Stima unificata Function Points ($87.42 \cdot \text{FP}^{0.56}$).
-- **Interpretabilità:** Calcolo e visualizzazione della matrice di appartenenza fuzzy $\mu$ per comprendere l'attribuzione dei pesi del modello.
 
 Per avviare la web app:
 ```bash

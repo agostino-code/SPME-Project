@@ -114,17 +114,17 @@ where $c_{rj}$ is the cluster center and $d_{rj}$ is the weighted standard devia
 The project features a modern, production-grade **Flask** web application equipped with a Glassmorphism UI:
 
 - **Guided Parameter Input:** Input fields for Function Point counters (Input, Output, Enquiry, File, Interface, Added, Changed, Deleted).
-- **Realistic Project Scale Presets:** Instant loading for typical contract sizes:
-  - *Small (€10K)*
-  - *Medium (€80K)*
-  - *Large (€400K)*
-  - *Mega / Public Sector (€1.2M)*
+- **Realistic Project Scale Presets:** Instant loading for typical contract sizes (*Small*, *Medium*, *Large*, *Mega / PNRR*).
+- **Team Productivity Profiles (PDR):** Configurable team delivery rates (High-Productivity / Agile at 4.5 h/FP, Standard Enterprise at 8.1 h/FP, Complex / Regulated at 16.0 h/FP, or custom delivery rate).
+- **Economic Budgeting & Person-Months:** Configurable hourly rate (€/h, default €50/h) with automatic computation of:
+  - **Effort in Person-Hours**
+  - **Person-Months (PM = hours / 160)**
+  - **Total Estimated Cost (€ = hours × hourly rate)**
 - **Simultaneous Multi-Model Estimation:**
-  - **Fuzzy-DCNN (Our Deep Learning Model):** Non-linear effort prediction based on fuzzy feature topologies.
+  - **Fuzzy-DCNN (Our Deep Learning Model):** Non-linear effort prediction dynamically conditioned on fuzzy feature topologies and team productivity.
   - **M-HLFPA (Di Martino SLR):** Closed-form High-Level Function Point estimation ($74.9 \cdot \text{HLFPA}^{0.58}$).
   - **M-IFPA (Di Martino SLR):** Indicative Function Point estimation ($539.99 \cdot \text{IFPA}^{0.272}$).
   - **M-FP (Di Martino SLR):** Unadjusted Function Point estimation ($87.42 \cdot \text{FP}^{0.56}$).
-- **Model Explainability:** Live inspection of the computed fuzzy membership matrix $\mu$ across all functional features.
 
 To start the application:
 ```bash

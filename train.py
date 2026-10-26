@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import torch
 from sklearn.linear_model import LinearRegression
-from sklearn.metrics import mean_absolute_error, mean_squared_error
+from sklearn.metrics import mean_absolute_error, mean_squared_error, median_absolute_error
 
 sys.path.append(os.path.join(os.path.dirname(__file__), 'fuzzy-DCNN-implementation'))
 
@@ -65,12 +65,13 @@ def train_and_save():
 
     dcnn_mae = float(mean_absolute_error(y_test_unscaled, pred_unscaled))
     dcnn_rmse = float(np.sqrt(mean_squared_error(y_test_unscaled, pred_unscaled)))
+    dcnn_medae = float(median_absolute_error(y_test_unscaled, pred_unscaled))
     abs_errors = np.abs(y_test_unscaled - pred_unscaled)
     mre = abs_errors / np.maximum(y_test_unscaled, 1e-6)
     dcnn_mmre = float(np.mean(mre))
     dcnn_pred25 = float(np.mean(mre <= 0.25) * 100.0)
 
-    print(f"DCNN Test MAE: {dcnn_mae:.2f}, RMSE: {dcnn_rmse:.2f}, MMRE: {dcnn_mmre:.4f}, Pred(25): {dcnn_pred25:.2f}%")
+    print(f"DCNN Test MAE: {dcnn_mae:.2f}, RMSE: {dcnn_rmse:.2f}, MedAE: {dcnn_medae:.2f}, MMRE: {dcnn_mmre:.4f}, Pred(25): {dcnn_pred25:.2f}%")
 
     print("Training Linear Regression...")
     y_train = dataset.inverse_transform_target(dataset.training_target_scaled)
@@ -101,10 +102,11 @@ def train_and_save():
     lin_reg.fit(df_train[['HLFPA', 'IFPA']], y_train)
 
     lin_preds = lin_reg.predict(df_test[['HLFPA', 'IFPA']])
-    lin_mae = mean_absolute_error(y_test, lin_preds)
-    lin_rmse = np.sqrt(mean_squared_error(y_test, lin_preds))
+    lin_mae = float(mean_absolute_error(y_test, lin_preds))
+    lin_rmse = float(np.sqrt(mean_squared_error(y_test, lin_preds)))
+    lin_medae = float(median_absolute_error(y_test, lin_preds))
 
-    print(f"Linear Regression Test MAE: {lin_mae:.2f}, RMSE: {lin_rmse:.2f}")
+    print(f"Linear Regression Test MAE: {lin_mae:.2f}, RMSE: {lin_rmse:.2f}, MedAE: {lin_medae:.2f}")
 
     print("Saving models...")
     os.makedirs("models", exist_ok=True)
@@ -132,10 +134,12 @@ def train_and_save():
         'metrics': {
             'dcnn_mae': float(dcnn_mae),
             'dcnn_rmse': float(dcnn_rmse),
+            'dcnn_medae': float(dcnn_medae),
             'dcnn_mmre': float(dcnn_mmre),
             'dcnn_pred25': float(dcnn_pred25),
             'lin_mae': float(lin_mae),
-            'lin_rmse': float(lin_rmse)
+            'lin_rmse': float(lin_rmse),
+            'lin_medae': float(lin_medae)
         }
     }, "models/models-meta.joblib")
 
